@@ -38,6 +38,7 @@ def main() -> None:
     clientes_por_dominio = defaultdict(set)
     copias = Counter()
     salesforce_formato = Counter()
+    tamanos_sin_url = Counter()
     for n, (nombre, ruta, _) in enumerate(raiz, 1):
         movil_por_nombre: dict[str, list[str | None]] = defaultdict(list)
         movil_rutas: dict[str, str | None] = {}
@@ -49,11 +50,15 @@ def main() -> None:
             url = leer_url(e.ruta)
             p = urlsplit(url) if url else None
             dominio = (p.hostname or "?") if p else "(sin URL)"
+            if p and "." not in dominio and dominio != "?":
+                dominio = "(dominio inválido: enlace dañado)"
             esquema = p.scheme if p else "-"
             enlaces[(cat, esquema, dominio)] += 1
             clientes_por_dominio[f"{esquema}://{dominio}"].add(nombre)
             if dominio.endswith("salesforce.com") and p:
                 salesforce_formato[f"ruta={p.path} | fragmento={'sí' if p.fragment else 'no'}"] += 1
+            if cat == "facultativa" and not url:
+                tamanos_sin_url[e.tamano if e.tamano < 1024 else 1024] += 1
             if cat == "movil":
                 movil_por_nombre[R.normalizar(e.nombre)].append(url)
                 movil_rutas[url] = e.nombre
@@ -64,7 +69,10 @@ def main() -> None:
         todas_movil = {u for lst in movil_por_nombre.values() for u in lst if u}
         for original, url in copias_fac:
             mismos = movil_por_nombre.get(R.normalizar(original), [])
-            if url and url in todas_movil:
+            if not url:
+                copias["la copia NO tiene URL legible" + (" (existe original con ese nombre en Móvil)"
+                                                         if mismos else " (sin original con ese nombre)")] += 1
+            elif url in todas_movil:
                 copias[("enlace idéntico en Móvil (se excluye)")] += 1
             elif not mismos:
                 copias["NO hay un archivo con el nombre original en Móvil"] += 1
@@ -91,6 +99,10 @@ def main() -> None:
     print("\n--- 'Copia X.url' de Facultativa comparada con Móvil ---")
     for k, v in copias.most_common():
         print(f"{v:7d}  {k}")
+    if tamanos_sin_url:
+        print("\n--- Tamaño de los .url de Facultativa sin URL legible (bytes; 1024 = 1 KB o más) ---")
+        for k, v in sorted(tamanos_sin_url.items()):
+            print(f"{v:7d}  {k} bytes")
     if salesforce_formato:
         print("\n--- Formato de enlaces Salesforce (sin token) ---")
         for k, v in salesforce_formato.most_common(5):

@@ -48,6 +48,8 @@ def test_validar_url(entorno):
     assert "Dominio" in validar_url("https://claro.my.salesforce.com/sfc/p/#f4000004kWgH/a/3n0000002gJU/Lnhb", cfg)
     assert "Esquema" in validar_url(u.replace("https", "http"), cfg)
     assert validar_url(None, cfg)
+    assert "incompleta" in validar_url("http://cffmslo0cdndmxzmsm5lv21iou5aotnvemviq", cfg)
+    assert "incompleta" in validar_url("http://file/get/abc", cfg)
 
 
 # --- descargador ----------------------------------------------------------------

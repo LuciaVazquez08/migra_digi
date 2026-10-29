@@ -279,6 +279,11 @@ def _procesar_facultativa(plan: Plan, arbol: _Arbol, cont: Entrada, cfg: Config,
             continue
 
         url = leer_url(e.ruta)
+        if not url:
+            plan.incidir(e.ruta, "COPIA_ILEGIBLE",
+                         f"La copia no contiene una URL legible ({e.tamano} bytes): no puede compararse con el "
+                         "original de Documentación Móvil")
+            continue
         candidatos = urls_movil.get(R.normalizar(original), [])
         coincidente = next((c for c, u in candidatos if url and u == url), None)
         if coincidente is None and url and url in todas_las_urls_movil:

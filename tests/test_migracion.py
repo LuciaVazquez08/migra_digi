@@ -377,3 +377,10 @@ def test_cliente_solo_con_url_invalidas_no_se_reporta_sin_documentacion(entorno)
     tipos = {f[2] for f in load_workbook(res.reporte, read_only=True)["Detalle de incidencias"]
              .iter_rows(min_row=2, values_only=True)}
     assert "CLIENTE_SIN_DOCUMENTACION" not in tipos
+
+
+def test_copia_sin_url_legible(entorno):
+    raiz = entorno.cliente_normal(CUIT_A)
+    escribir(raiz / f"Documentación Facultativa {CUIT_A}" / "Copia DNI 1.url", b"[InternetShortcut]\r\n")
+    entorno.excel()
+    _bloqueado(entorno, CUIT_A, "COPIA_ILEGIBLE")

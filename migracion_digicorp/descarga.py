@@ -81,9 +81,12 @@ def validar_url(url: str | None, cfg: Config) -> str:
         partes = urlsplit(url)
     except ValueError as exc:
         return f"URL mal formada: {exc}"
+    host = (partes.hostname or "").lower()
+    if partes.scheme in ("http", "https") and "." not in host:
+        return (f"URL incompleta o dañada: '{host[:20]}…' no es un dominio válido "
+                "(falta el servidor; no se reconstruye)")
     if partes.scheme != "https":
         return f"Esquema no permitido: {partes.scheme or '(ninguno)'}"
-    host = (partes.hostname or "").lower()
     if host not in cfg.dominios_permitidos:
         return f"Dominio no soportado para descarga automática: {host or '(vacío)'}"
     validador = _VALIDADORES.get(host)
