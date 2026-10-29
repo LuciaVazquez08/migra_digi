@@ -21,7 +21,9 @@ PLACEHOLDERS_CONTRATOS = frozenset({"numero os"})
 ARCHIVOS_IGNORADOS = frozenset({"desktop.ini", "thumbs.db"})
 EXT_BLOQUEANTES = frozenset({".crdownload", ".partial", ".lnk", ".tmp", ".part"})
 EXT_IMAGEN = frozenset({".jpg", ".jpeg", ".jfif", ".png", ".bmp", ".tif", ".tiff", ".gif"})
-EXT_OFFICE = frozenset({".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".rtf", ".odt", ".ods"})
+# Las planillas no son documentación: su presencia bloquea al cliente.
+EXT_EXCEL = frozenset({".xls", ".xlsx", ".xlsm", ".xlsb", ".xlt", ".xltx", ".xltm", ".ods"})
+EXT_OFFICE = frozenset({".doc", ".docx", ".ppt", ".pptx", ".rtf", ".odt"})
 # Formatos que se migran tal cual (no existe conversión a PDF sin pérdida)
 EXT_COPIA_DIRECTA = frozenset({".msg", ".eml", ".mht", ".mhtml", ".zip", ".rar", ".7z", ".txt", ".csv"})
 EXT_URL = ".url"

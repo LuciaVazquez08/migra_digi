@@ -223,12 +223,22 @@ def test_archivo_suelto_no_inferible_bloquea(entorno):
 
 @pytest.mark.parametrize("nombre,tipo", [("descarga.pdf.crdownload", "ARCHIVO_INCOMPLETO_O_ACCESO_DIRECTO"),
                                          ("acceso.lnk", "ARCHIVO_INCOMPLETO_O_ACCESO_DIRECTO"),
-                                         ("SINEXTENSION", "ARCHIVO_SIN_EXTENSION")])
+                                         ("SINEXTENSION", "ARCHIVO_SIN_EXTENSION"),
+                                         ("Listado.xlsx", "PLANILLA_EXCEL"),
+                                         ("viejo.XLS", "PLANILLA_EXCEL"),
+                                         ("macro.xlsm", "PLANILLA_EXCEL")])
 def test_extensiones_bloqueantes(entorno, nombre, tipo):
     raiz = entorno.cliente_normal(CUIT_A)
     escribir(raiz / f"Documentación Facultativa {CUIT_A}" / nombre, b"x")
     entorno.excel()
     _bloqueado(entorno, CUIT_A, tipo)
+
+
+def test_excel_en_sds_bloquea(entorno):
+    raiz = entorno.cliente_normal(CUIT_A)
+    escribir(raiz / "Documentación Móvil" / "29067459SEC" / "control.xlsx", b"PK\x03\x04 planilla")
+    entorno.excel()
+    _bloqueado(entorno, CUIT_A, "PLANILLA_EXCEL")
 
 
 def test_carpeta_desconocida_y_facultativa_ajena(entorno):

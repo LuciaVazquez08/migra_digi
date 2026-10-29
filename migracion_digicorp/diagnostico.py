@@ -137,6 +137,9 @@ def _planificar_archivo(plan: Plan, e: Entrada, destino_dir: tuple[str, ...], cf
     if ext == "":
         plan.incidir(e.ruta, "ARCHIVO_SIN_EXTENSION", "Archivo sin extensión: no se puede determinar su tipo")
         return
+    if ext in R.EXT_EXCEL:
+        plan.incidir(e.ruta, "PLANILLA_EXCEL", f"Planilla '{e.nombre}': los Excel no son documentación y no se migran")
+        return
     if ext in R.EXT_BLOQUEANTES:
         plan.incidir(e.ruta, "ARCHIVO_INCOMPLETO_O_ACCESO_DIRECTO",
                      f"Extensión '{ext}' (descarga parcial o acceso directo)")
