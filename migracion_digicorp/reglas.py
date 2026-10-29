@@ -22,10 +22,10 @@ ARCHIVOS_IGNORADOS = frozenset({"desktop.ini", "thumbs.db"})
 EXT_BLOQUEANTES = frozenset({".crdownload", ".partial", ".lnk", ".tmp", ".part"})
 EXT_IMAGEN = frozenset({".jpg", ".jpeg", ".jfif", ".png", ".bmp", ".tif", ".tiff", ".gif"})
 # Las planillas no son documentación: su presencia bloquea al cliente.
-EXT_EXCEL = frozenset({".xls", ".xlsx", ".xlsm", ".xlsb", ".xlt", ".xltx", ".xltm", ".ods"})
+EXT_EXCEL = frozenset({".xls", ".xlsx", ".xlsm", ".xlsb", ".xlt", ".xltx", ".xltm", ".ods", ".csv"})
 EXT_OFFICE = frozenset({".doc", ".docx", ".ppt", ".pptx", ".rtf", ".odt"})
 # Formatos que se migran tal cual (no existe conversión a PDF sin pérdida)
-EXT_COPIA_DIRECTA = frozenset({".msg", ".eml", ".mht", ".mhtml", ".zip", ".rar", ".7z", ".txt", ".csv"})
+EXT_COPIA_DIRECTA = frozenset({".msg", ".eml", ".mht", ".mhtml", ".zip", ".rar", ".7z", ".txt"})
 EXT_URL = ".url"
 EXT_PDF = ".pdf"
 EXT_PERMITIDAS = EXT_IMAGEN | EXT_OFFICE | EXT_COPIA_DIRECTA | {EXT_URL, EXT_PDF}

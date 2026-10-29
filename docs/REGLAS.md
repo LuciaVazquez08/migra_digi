@@ -76,8 +76,8 @@ bloquea (`CLIENTE_SIN_DOCUMENTACION`).
 | `.pdf` | Se valida (§7) y se copia; si es inválido, bloquea (`PDF_CORRUPTO`) |
 | Imágenes (`jpg jpeg jfif png bmp tif tiff gif`) | Se convierten a PDF (todas las páginas). Si no se puede, se copia el original |
 | Office (`doc docx ppt pptx rtf odt`) | Se convierten a PDF con LibreOffice si está instalado. Si no, se copia el original |
-| `msg eml mht mhtml zip rar 7z txt csv` | Se copian tal cual (no hay conversión sin pérdida) |
-| Planillas (`xls xlsx xlsm xlsb xlt xltx xltm ods`) | **bloquean** (`PLANILLA_EXCEL`): no son documentación y no se migran |
+| `msg eml mht mhtml zip rar 7z txt` | Se copian tal cual (no hay conversión sin pérdida) |
+| Planillas (`xls xlsx xlsm xlsb xlt xltx xltm ods csv`) | **bloquean** (`PLANILLA_EXCEL`): no son documentación y no se migran |
 | `desktop.ini`, `Thumbs.db` | Se ignoran y se registran |
 | `.crdownload .partial .part .tmp .lnk`, sin extensión, 0 bytes, extensión desconocida, enlace simbólico | bloquean |
 
