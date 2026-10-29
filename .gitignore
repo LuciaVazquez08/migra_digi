@@ -1,0 +1,14 @@
+# Datos sensibles: NUNCA versionar (CUITs, enlaces con token de acceso a documentos)
+*.xlsx
+*.xls
+*.url
+*.pdf
+config.local.toml
+trabajo/
+estado.sqlite*
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/

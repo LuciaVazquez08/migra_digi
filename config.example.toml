@@ -1,0 +1,27 @@
+# Copiar como config.local.toml (no se versiona) y ajustar.
+# Todas las claves son opcionales; los valores por defecto están en migracion_digicorp/config.py.
+
+origen = 'E:\Raw Data'
+destino = 'E:\Digicorp'
+# Debe estar en el mismo volumen que el destino (E:) para publicar con un rename atómico.
+trabajo = 'E:\Migracion Digicorp\trabajo'
+excel_referencia = 'E:\Migracion Digicorp\Scripts\estructura_directorio.xlsx'
+hoja_arbol = "Arbol_Carpetas"
+
+# "simulacion" (por defecto) o "real". En "real" además hay que pasar --confirmar-ejecucion-real.
+modo = "simulacion"
+# Tope de clientes publicados por ejecución. Puede bajarse; nunca supera 2000.
+limite_publicaciones = 2000
+
+validar_digito_verificador = true
+aceptar_imagen_descargada = true
+
+dominios_permitidos = ["cdnva.s1gateway.com"]
+timeout_conexion = 15
+timeout_lectura = 60
+reintentos = 3
+espera_reintento = 2
+descargas_concurrentes = 4
+
+convertir_office = true
+# soffice = 'C:\Program Files\LibreOffice\program\soffice.exe'
