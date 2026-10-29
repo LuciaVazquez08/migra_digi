@@ -226,7 +226,8 @@ def test_archivo_suelto_no_inferible_bloquea(entorno):
                                          ("SINEXTENSION", "ARCHIVO_SIN_EXTENSION"),
                                          ("Listado.xlsx", "PLANILLA_EXCEL"),
                                          ("viejo.XLS", "PLANILLA_EXCEL"),
-                                         ("macro.xlsm", "PLANILLA_EXCEL")])
+                                         ("macro.xlsm", "PLANILLA_EXCEL"),
+                                         ("export.csv", "PLANILLA_EXCEL")])
 def test_extensiones_bloqueantes(entorno, nombre, tipo):
     raiz = entorno.cliente_normal(CUIT_A)
     escribir(raiz / f"Documentación Facultativa {CUIT_A}" / nombre, b"x")
