@@ -111,7 +111,12 @@ def diagnosticar(cuit: str, ruta: Path, entradas: list[Entrada], ref: Referencia
     for e in facultativa:
         _procesar_facultativa(plan, arbol, e, cfg, soffice, urls_movil)
 
-    if not any(a.tipo in (TipoAccion.COPIAR, TipoAccion.DESCARGAR, TipoAccion.CONVERTIR) for a in plan.acciones):
+    # Solo se informa cuando la falta de documentos no se explica por otro bloqueo (p. ej. URL inválidas).
+    hay_archivos = any(not e.es_dir and not R.es_ignorado(e.nombre) for e in entradas)
+    migrables = any(a.tipo in (TipoAccion.COPIAR, TipoAccion.DESCARGAR, TipoAccion.CONVERTIR) for a in plan.acciones)
+    if not hay_archivos:
+        plan.incidir(ruta, "CLIENTE_SIN_DOCUMENTACION", "El cliente no tiene ningún archivo")
+    elif not migrables and not plan.bloqueado:
         plan.incidir(ruta, "CLIENTE_SIN_DOCUMENTACION", "El cliente no tiene ningún documento migrable")
     _detectar_colisiones(plan)
     return plan

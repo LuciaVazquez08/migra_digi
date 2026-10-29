@@ -365,3 +365,15 @@ def test_conversion_office(entorno):
     entorno.cfg.convertir_office = True
     assert correr(entorno).publicados == 1
     assert "Documentacion Corpo Fija/Documentacion Facultativa/Filmina.pdf" in archivos_destino(entorno, CUIT_A)
+
+
+def test_cliente_solo_con_url_invalidas_no_se_reporta_sin_documentacion(entorno):
+    c = cuit("2088888888")
+    escribir(entorno.origen / c / "Documentación Móvil" / "29111111SEC" / "SDS.url",
+             contenido_url("https://claro.my.salesforce.com/sfc/p/#f4000004kWgH/a/3n0000002gJU/xyz"))
+    entorno.excel()
+    res = _bloqueado(entorno, c, "URL_INVALIDA")
+    from openpyxl import load_workbook
+    tipos = {f[2] for f in load_workbook(res.reporte, read_only=True)["Detalle de incidencias"]
+             .iter_rows(min_row=2, values_only=True)}
+    assert "CLIENTE_SIN_DOCUMENTACION" not in tipos

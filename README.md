@@ -44,6 +44,7 @@ Todos los comandos se ejecutan desde la carpeta del repo con el entorno activado
 | 3 | `python -m migracion_digicorp migrar` | **Simulación** (por defecto): prepara el staging, ejecuta la validación final y lo descarta. Estado `SIMULADO_OK` |
 | 4 | `modo = "real"` en `config.local.toml` + `python -m migracion_digicorp migrar --confirmar-ejecucion-real` | Publica. Pide escribir `MIGRAR`. Máximo 2000 clientes por ejecución |
 | – | `python -m migracion_digicorp probar-url "ruta\DNI.url"` | Prueba la descarga de enlaces puntuales |
+| – | `python herramientas\resumen_urls.py --desde 20000000000 --limite 200` | Resumen de dominios de los enlaces y de las copias, sin CUITs ni tokens |
 | – | `python -m migracion_digicorp estado` | Muestra el resumen de estados persistidos |
 
 Filtros disponibles en `inventario`, `diagnostico` y `migrar`:
