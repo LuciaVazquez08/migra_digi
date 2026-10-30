@@ -73,9 +73,10 @@ Fortinet), agregar en `config.local.toml`:
 dominios_postergados = ["cdnva.s1gateway.com"]
 ```
 
-Esos clientes quedan `POSTERGADO` y se migran después en otro equipo (copiando la carpeta `trabajo\`
-para conservar el estado, o con una carpeta de trabajo nueva: los ya publicados se detectan porque su
-carpeta de destino existe y no se sobrescriben).
+Esos clientes quedan `POSTERGADO` y se migran después en otro equipo, sin esa línea. En el otro equipo
+conviene usar **la misma carpeta `trabajo\`** (copiada o compartida): así los ya publicados figuran
+como `OMITIDO_YA_PUBLICADO`. Con una carpeta de trabajo nueva tampoco se pierde ni se pisa nada, pero
+los ya publicados aparecerían como `DESTINO_EXISTENTE` en el reporte.
 
 ## Salidas (en `trabajo\`)
 
