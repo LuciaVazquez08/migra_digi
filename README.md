@@ -133,9 +133,16 @@ Si la ejecución se detiene con `ERROR_DE_ENTORNO` por un certificado HTTPS "no 
    ```powershell
    $env:HTTPS_PROXY = "http://proxy.empresa:8080"
    ```
-3. O pedir el certificado raíz de inspección SSL (`.pem`) y definir
-   `$env:REQUESTS_CA_BUNDLE = "C:\ruta\certificado.pem"`.
-
+3. Ver quién emite el certificado (solo lo lee, no descarga nada):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File herramientas\ver_certificado.ps1
+   ```
+   Si el emisor es de la empresa (firewall/proxy de inspección), pedir a sistemas el certificado raíz
+   oficial en formato PEM (Base64) y configurarlo en `config.local.toml`:
+   ```toml
+   certificado_adicional = 'C:\ruta\raiz_empresa.pem'
+   ```
+   Se suma a las autoridades públicas; la verificación sigue activa.
 4. Alternativa sin pedir nada a sistemas: descargar esos dominios con el navegador automático, que
    usa su propia red y sus certificados (igual que cuando se abre el enlace a mano). En
    `config.local.toml`:
