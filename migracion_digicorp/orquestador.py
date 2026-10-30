@@ -135,7 +135,8 @@ def ejecutar(cfg: Config, op: Opciones, *, referencia: Referencia | None = None,
 
     referencia = referencia or leer_referencia(cfg.excel_referencia, cfg.hoja_arbol)
     necesita_red = op.comando == COMANDO_MIGRAR or op.validar_urls
-    if necesita_red and descargador is None:
+    propio_descargador = necesita_red and descargador is None
+    if propio_descargador:
         descargador = Descargador(cfg, estado)
 
     raiz = listar_raiz(cfg.origen)
@@ -192,6 +193,8 @@ def ejecutar(cfg: Config, op: Opciones, *, referencia: Referencia | None = None,
         estado.finalizar_ejecucion(id_ejecucion, res.publicados, res.motivo_fin)
         log.info("Fin (%s). Resultados: %s. Publicados: %d. Reporte: %s",
                  res.motivo_fin, res.contadores, res.publicados, res.reporte)
+        if propio_descargador:
+            descargador.cerrar()
         if propio_estado:
             estado.cerrar()
     return res

@@ -16,12 +16,18 @@ limite_publicaciones = 2000
 validar_digito_verificador = true
 aceptar_imagen_descargada = true
 
-dominios_permitidos = ["cdnva.s1gateway.com"]
+dominios_permitidos = ["cdnva.s1gateway.com", "claro.my.salesforce.com"]
 timeout_conexion = 15
 timeout_lectura = 60
 reintentos = 3
 espera_reintento = 2
 descargas_concurrentes = 4
+
+# Enlaces públicos de Salesforce: se abren con un navegador automático (Playwright) sin ventana.
+navegadores_simultaneos = 2
+timeout_navegador = 60
+navegador_visible = false        # true para ver el navegador trabajando
+# navegador_canal = "msedge"     # usar el Edge instalado si no se puede instalar Chromium
 
 convertir_office = true
 # soffice = 'C:\Program Files\LibreOffice\program\soffice.exe'

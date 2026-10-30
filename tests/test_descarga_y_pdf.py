@@ -47,7 +47,11 @@ def test_validar_url(entorno):
     u = url_s1("x")
     assert validar_url(u, cfg) == ""
     assert "truncado" in validar_url(u[:-7], cfg)
-    assert "Dominio" in validar_url("https://claro.my.salesforce.com/sfc/p/#f4000004kWgH/a/3n0000002gJU/Lnhb", cfg)
+    sf = "https://claro.my.salesforce.com/sfc/p/#f4000004kWgH/a/3n0000002gJU/LnhbDjA0a9fCRWkM8x1X6kVrgO6aADXj1xhx2mVrLxM"
+    assert validar_url(sf, cfg) == ""
+    assert "truncado" in validar_url(sf[:-40], cfg)
+    assert "truncado" in validar_url("https://claro.my.salesforce.com/sfc/p/", cfg)
+    assert "Dominio" in validar_url("https://otro.my.salesforce.com/sfc/p/#f4000004kWgH/a/3n0000002gJU/x", cfg)
     assert "Esquema" in validar_url(u.replace("https", "http"), cfg)
     assert validar_url(None, cfg)
     assert "incompleta" in validar_url("http://cffmslo0cdndmxzmsm5lv21iou5aotnvemviq", cfg)
@@ -112,3 +116,56 @@ def test_descarga_imagen_se_convierte(entorno):
     entorno.sesion.respuestas[u] = RespuestaFalsa(200, jpg_bytes(), {"Content-Type": "image/jpeg"})
     r = d.obtener(u)
     assert r.ok and r.convertido_desde == "jpeg" and validar_pdf(r.ruta).ok
+
+
+# --- Salesforce (navegador automático) -------------------------------------------
+
+SF = "https://claro.my.salesforce.com/sfc/p/#f4000004kWgH/a/3n0000002gJU/LnhbDjA0a9fCRWkM8x1X6kVrgO6aADXj1xhx2mVrLxM"
+
+
+class NavegadorFalso:
+    def __init__(self, efectos):
+        self.efectos = list(efectos)
+        self.llamadas = 0
+
+    def descargar(self, url, destino):
+        self.llamadas += 1
+        efecto = self.efectos.pop(0) if len(self.efectos) > 1 else self.efectos[0]
+        if isinstance(efecto, Exception):
+            raise efecto
+        destino.write_bytes(efecto)
+
+    def cerrar(self):
+        pass
+
+
+def _desc_sf(entorno, efectos):
+    from migracion_digicorp.descarga import Descargador
+    nav = NavegadorFalso(efectos)
+    return Descargador(entorno.cfg, Estado(entorno.cfg.archivo_estado), session=entorno.sesion, navegador=nav), nav
+
+
+def test_salesforce_ok_y_cache(entorno):
+    d, nav = _desc_sf(entorno, [pdf_bytes(2)])
+    assert d.obtener(SF).ok
+    assert d.obtener(SF).desde_cache and nav.llamadas == 1
+    assert entorno.sesion.llamadas == []  # no usa requests
+
+
+def test_salesforce_reintenta_y_errores(entorno):
+    from migracion_digicorp.navegador import ErrorNavegador, ErrorNavegadorPermanente
+    d, nav = _desc_sf(entorno, [ErrorNavegador("lento"), pdf_bytes()])
+    assert d.obtener(SF).ok and nav.llamadas == 2
+    d, nav = _desc_sf(entorno, [ErrorNavegadorPermanente("sin botón")])
+    r = d.obtener(SF.replace("Lnhb", "Xnhb"))
+    assert not r.ok and r.permanente and "sin botón" in r.error
+    d, _ = _desc_sf(entorno, [b"<html>error</html>"])
+    r = d.obtener(SF.replace("Lnhb", "Ynhb"))
+    assert not r.ok and "HTML" in r.error
+
+
+def test_salesforce_sin_playwright_no_es_permanente(entorno):
+    from migracion_digicorp.navegador import ErrorConfiguracionNavegador
+    d, nav = _desc_sf(entorno, [ErrorConfiguracionNavegador("Playwright no está instalado")])
+    r = d.obtener(SF)
+    assert not r.ok and not r.permanente and nav.llamadas == 1

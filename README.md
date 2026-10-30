@@ -26,6 +26,7 @@ cd C:\migracion-digicorp
 py -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+python -m playwright install chromium        # navegador para los enlaces de Salesforce
 copy config.example.toml config.local.toml   # y ajustar rutas
 ```
 

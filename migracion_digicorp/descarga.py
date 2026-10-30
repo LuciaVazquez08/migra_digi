@@ -7,6 +7,7 @@ import hashlib
 import logging
 import os
 import re
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,10 +19,13 @@ from .archivos import largo, sha256_archivo
 from .config import Config
 from .conversion import ErrorConversion, imagen_a_pdf
 from .estado import Estado
+from .navegador import (ErrorConfiguracionNavegador, ErrorNavegador, ErrorNavegadorPermanente,
+                        ServicioNavegador)
 from .validar_pdf import detectar_tipo, validar_pdf
 
 log = logging.getLogger(__name__)
 
+_RE_FRAGMENTO_SF = re.compile(r"[A-Za-z0-9]{12}/a/[A-Za-z0-9]{12}/[A-Za-z0-9_\-]{20,}")
 _RE_TOKEN_S1 = re.compile(r"/file/get/([A-Za-z0-9+/]+={0,2})")
 _TIPOS_IMAGEN = {"jpeg", "png", "tiff", "gif", "bmp"}
 
@@ -72,7 +76,19 @@ def _validar_s1gateway(partes) -> str:
     return ""
 
 
-_VALIDADORES = {"cdnva.s1gateway.com": _validar_s1gateway}
+def _validar_salesforce(partes) -> str:
+    if partes.path != "/sfc/p/" or partes.query:
+        return "Ruta de Salesforce inesperada (se esperaba /sfc/p/#<org>/a/<id>/<token>)"
+    if not _RE_FRAGMENTO_SF.fullmatch(partes.fragment or ""):
+        return "Enlace de Salesforce truncado o mal formado (la parte después de '#' no tiene el formato esperado)"
+    return ""
+
+
+def es_salesforce(url: str) -> bool:
+    return (urlsplit(url).hostname or "").lower().endswith(".salesforce.com")
+
+
+_VALIDADORES = {"cdnva.s1gateway.com": _validar_s1gateway, "claro.my.salesforce.com": _validar_salesforce}
 
 
 def validar_url(url: str | None, cfg: Config) -> str:
@@ -120,10 +136,13 @@ class ErrorPermanente(Exception):
 class Descargador:
     """Descarga a ``cache/<sha256(url)>.pdf`` y valida. Reutiliza descargas previas válidas."""
 
-    def __init__(self, cfg: Config, estado: Estado, session: requests.Session | None = None):
+    def __init__(self, cfg: Config, estado: Estado, session: requests.Session | None = None,
+                 navegador: ServicioNavegador | None = None):
         self.cfg = cfg
         self.estado = estado
         self.session = session or self._crear_sesion()
+        self._navegador = navegador
+        self._lock_navegador = threading.Lock()
         self.cfg.dir_cache.mkdir(parents=True, exist_ok=True)
         (self.cfg.dir_cache / "tmp").mkdir(exist_ok=True)
 
@@ -132,6 +151,17 @@ class Descargador:
         s.headers["User-Agent"] = self.cfg.user_agent
         s.max_redirects = 10
         return s
+
+    def navegador(self) -> ServicioNavegador:
+        with self._lock_navegador:
+            if self._navegador is None:
+                self._navegador = ServicioNavegador(self.cfg)
+            return self._navegador
+
+    def cerrar(self) -> None:
+        if self._navegador is not None:
+            self._navegador.cerrar()
+            self._navegador = None
 
     def ruta_cache(self, url: str) -> Path:
         return self.cfg.dir_cache / f"{clave_url(url)}.pdf"
@@ -166,6 +196,11 @@ class Descargador:
                                                bytes_=destino.stat().st_size, tipo=resultado.tipo,
                                                intentos=intentos)
                 return resultado
+            except ErrorConfiguracionNavegador as exc:
+                ultimo_error = str(exc)
+                self.estado.registrar_descarga(clave, url, "ERROR", permanente=False, error=ultimo_error,
+                                               intentos=intentos)
+                return ResultadoDescarga(False, error=ultimo_error)
             except ErrorPermanente as exc:
                 ultimo_error = str(exc)
                 self.estado.registrar_descarga(clave, url, "ERROR", permanente=True, error=ultimo_error,
@@ -186,6 +221,8 @@ class Descargador:
 
     def _bajar(self, url: str, tmp: Path) -> str:
         """Descarga en streaming a ``tmp``. Lanza ErrorPermanente o excepciones reintentables."""
+        if es_salesforce(url):
+            return self._bajar_salesforce(url, tmp)
         resp = self.session.get(url, stream=True, allow_redirects=True,
                                 timeout=(self.cfg.timeout_conexion, self.cfg.timeout_lectura))
         try:
@@ -217,6 +254,20 @@ class Descargador:
             return resp.headers.get("Content-Type", "")
         finally:
             resp.close()
+
+    def _bajar_salesforce(self, url: str, tmp: Path) -> str:
+        try:
+            self.navegador().descargar(url, tmp)
+        except ErrorNavegadorPermanente as exc:
+            raise ErrorPermanente(str(exc)) from exc
+        except ErrorNavegador as exc:
+            raise IOError(str(exc)) from exc
+        tamano = tmp.stat().st_size if tmp.exists() else 0
+        if tamano == 0:
+            raise ErrorPermanente("La descarga de Salesforce no devolvió contenido (0 bytes)")
+        if tamano > self.cfg.tamano_maximo_descarga:
+            raise ErrorPermanente("La descarga supera el tamaño máximo configurado")
+        return ""
 
     def _validar_y_guardar(self, tmp: Path, destino: Path, content_type: str) -> ResultadoDescarga:
         tipo = detectar_tipo(tmp)

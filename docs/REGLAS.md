@@ -84,9 +84,14 @@ bloquea (`CLIENTE_SIN_DOCUMENTACION`).
 
 ## 7. Enlaces y PDF
 
-- Solo se descargan dominios de `dominios_permitidos` (hoy `cdnva.s1gateway.com`, solo HTTPS). Los
-  enlaces de **Salesforce** (`claro.my.salesforce.com/sfc/p/#…`) bloquean al cliente
-  (`URL_INVALIDA: Dominio no soportado`) hasta que se defina cómo descargarlos.
+- Solo se descargan dominios de `dominios_permitidos` (`cdnva.s1gateway.com` y `claro.my.salesforce.com`,
+  solo HTTPS). Cualquier otro dominio, o un enlace sin servidor válido (`http://file/…`, `http://<token>`),
+  bloquea sin reconstruir el enlace.
+- Salesforce: enlaces públicos `/sfc/p/#<org 12>/a/<id 12>/<token>`. Si el fragmento no tiene ese formato,
+  el enlace está truncado y bloquea. El identificador va después del `#` (el servidor nunca lo recibe),
+  por eso se abre con un navegador automático (Playwright, sin ventana), se presiona **Descargar** y, si
+  el original no es PDF ni imagen, **Descargar como PDF**. Si la página no muestra el botón (enlace vencido
+  o sin documento), es un error permanente. Solo se usan enlaces que no piden inicio de sesión.
 - s1gateway: la ruta es `/file/get/<token>` y el token es `base64(base64(bloque cifrado))`. Si alguna
   capa no decodifica o el bloque no es múltiplo de 16 bytes, el enlace está **truncado** y se
   bloquea sin descargar.

@@ -3,7 +3,7 @@ name = "migracion-digicorp"
 version = "0.1.0"
 description = "Migración validada de documentación de clientes (Raw Data -> Digicorp)"
 requires-python = ">=3.11"
-dependencies = ["openpyxl>=3.1,<4", "pypdf>=5.0,<7", "Pillow>=10.0", "requests>=2.31,<3"]
+dependencies = ["openpyxl>=3.1,<4", "pypdf>=5.0,<7", "Pillow>=10.0", "requests>=2.31,<3", "playwright>=1.45"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]

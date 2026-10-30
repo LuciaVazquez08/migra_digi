@@ -70,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
             r = d.obtener(url, reintentar_fallidas=True)
             print(f"[{'OK' if r.ok else 'ERROR'}] {archivo}: {r.ruta if r.ok else r.error}")
             codigo |= 0 if r.ok else 1
+        d.cerrar()
         est.cerrar()
         return codigo
 

@@ -41,7 +41,7 @@ class Config:
     aceptar_imagen_descargada: bool = True
 
     # --- Descargas -----------------------------------------------------------
-    dominios_permitidos: tuple[str, ...] = ("cdnva.s1gateway.com",)
+    dominios_permitidos: tuple[str, ...] = ("cdnva.s1gateway.com", "claro.my.salesforce.com")
     timeout_conexion: float = 15.0
     timeout_lectura: float = 60.0
     reintentos: int = 3
@@ -49,6 +49,13 @@ class Config:
     descargas_concurrentes: int = 4
     tamano_maximo_descarga: int = 200 * 1024 * 1024
     user_agent: str = "migracion-digicorp/1.0"
+
+    # --- Navegador automático (enlaces públicos de Salesforce) ---------------
+    navegadores_simultaneos: int = 2
+    timeout_navegador: float = 60.0
+    navegador_visible: bool = False   # True para ver el navegador trabajando (diagnóstico)
+    navegador_canal: str = ""         # "msedge" usa el Edge instalado en Windows
+    navegador_ejecutable: str = ""    # ruta explícita a un Chrome/Chromium
 
     # --- Conversión ----------------------------------------------------------
     convertir_office: bool = True
