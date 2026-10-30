@@ -144,7 +144,14 @@ def cargar_config(ruta: Path | None = None) -> Config:
         ruta = candidata if candidata.exists() else None
     if ruta is not None:
         with open(ruta, "rb") as fh:
-            datos = tomllib.load(fh)
+            try:
+                datos = tomllib.load(fh)
+            except tomllib.TOMLDecodeError as exc:
+                claves = [ln.split("=")[0].strip() for ln in Path(ruta).read_text(encoding="utf-8", errors="replace")
+                          .splitlines() if "=" in ln and not ln.lstrip().startswith("#")]
+                repetidas = sorted({c for c in claves if claves.count(c) > 1})
+                detalle = f" Claves repetidas: {', '.join(repetidas)} (dejar una sola de cada una)." if repetidas else ""
+                raise SystemExit(f"Error en {ruta}: {exc}.{detalle}") from None
         nombres = {f.name: f for f in fields(Config) if not f.name.startswith("_")}
         for clave, valor in datos.items():
             if clave not in nombres:
