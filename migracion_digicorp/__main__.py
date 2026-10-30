@@ -72,6 +72,10 @@ def main(argv: list[str] | None = None) -> int:
         d = Descargador(cfg, est)
         codigo = 0
         for archivo in args.archivos:
+            if not archivo.is_file():
+                print(f"[NO EXISTE] {archivo}: revisar la ruta (usar la ruta real de un archivo .url)")
+                codigo = 1
+                continue
             url = leer_url(archivo)
             motivo = validar_url(url, cfg)
             if motivo:
