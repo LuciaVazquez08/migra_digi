@@ -49,6 +49,9 @@ class Config:
     descargas_concurrentes: int = 4
     tamano_maximo_descarga: int = 200 * 1024 * 1024
     user_agent: str = "migracion-digicorp/1.0"
+    # Certificado raíz (PEM) adicional en el que confiar, p. ej. el de inspección SSL de la empresa.
+    # Se suma a las autoridades públicas habituales; nunca se desactiva la verificación.
+    certificado_adicional: str = ""
 
     # --- Navegador automático (enlaces públicos de Salesforce) ---------------
     navegadores_simultaneos: int = 2

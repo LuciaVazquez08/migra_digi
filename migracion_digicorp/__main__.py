@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import MODO_REAL, cargar_config
-from .descarga import Descargador, leer_url, validar_url
+from .descarga import Descargador, ErrorEntorno, leer_url, validar_url
 from .estado import Estado
 from .orquestador import (COMANDO_DIAGNOSTICO, COMANDO_INVENTARIO, COMANDO_MIGRAR, Opciones,
                           configurar_logging, ejecutar)
@@ -54,9 +54,10 @@ def _usar_certificados_del_sistema() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    _usar_certificados_del_sistema()
     args = _parser().parse_args(argv)
     cfg = cargar_config(args.config)
+    if not cfg.certificado_adicional:
+        _usar_certificados_del_sistema()
     cfg.trabajo.mkdir(parents=True, exist_ok=True)
     configurar_logging(cfg, datetime.now().strftime("%Y%m%d_%H%M%S"))
 
@@ -82,7 +83,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"[INVÁLIDO] {archivo}: {motivo}")
                 codigo = 1
                 continue
-            r = d.obtener(url, reintentar_fallidas=True)
+            try:
+                r = d.obtener(url, reintentar_fallidas=True)
+            except ErrorEntorno as exc:
+                print(f"[ERROR DE ENTORNO] {archivo}: {exc}")
+                codigo = 1
+                break
             print(f"[{'OK' if r.ok else 'ERROR'}] {archivo}: {r.ruta if r.ok else r.error}")
             codigo |= 0 if r.ok else 1
         d.cerrar()

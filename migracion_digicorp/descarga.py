@@ -113,6 +113,23 @@ def validar_url(url: str | None, cfg: Config) -> str:
     return validador(partes) if validador else ""
 
 
+def armar_bundle_certificados(cfg: Config) -> Path:
+    """Autoridades públicas (certifi) + el certificado adicional configurado, en un solo archivo PEM."""
+    import certifi
+
+    extra = Path(cfg.certificado_adicional)
+    if not extra.is_file():
+        raise ErrorEntorno(f"No existe el certificado adicional configurado: {extra}")
+    contenido = extra.read_bytes()
+    if b"-----BEGIN CERTIFICATE-----" not in contenido:
+        raise ErrorEntorno(f"{extra} no es un certificado en formato PEM (Base64). Exportarlo como "
+                           "'X.509 codificado base 64 (.CER)'")
+    destino = cfg.trabajo / "certificados.pem"
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_bytes(Path(certifi.where()).read_bytes() + b"\n" + contenido)
+    return destino
+
+
 def clave_url(url: str) -> str:
     return hashlib.sha256(url.encode("utf-8")).hexdigest()
 
@@ -171,6 +188,8 @@ class Descargador:
         s = requests.Session()
         s.headers["User-Agent"] = self.cfg.user_agent
         s.max_redirects = 10
+        if self.cfg.certificado_adicional:
+            s.verify = str(armar_bundle_certificados(self.cfg))
         return s
 
     def navegador(self) -> ServicioNavegador:

@@ -201,7 +201,8 @@ class ServicioNavegador:
                 texto = str(exc)
                 if any(m in texto for m in ("ERR_CERT", "ERR_SSL")):
                     raise ErrorConfiguracionNavegador(
-                        f"El navegador tampoco confía en el certificado del servidor: {texto[:120]}") from exc
+                        "El navegador tampoco confía en el certificado del servidor "
+                        f"({texto.split(' at ')[0][:80]}). Ver 'Problemas de red' en el README.") from exc
                 if not any(m in texto for m in ("Download is starting", "ERR_ABORTED",
                                                 "ERR_HTTP_RESPONSE_CODE_FAILURE")):
                     raise ErrorNavegador(f"Error de navegación: {texto[:200]}") from exc

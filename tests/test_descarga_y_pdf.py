@@ -192,3 +192,15 @@ def test_logs_sin_token():
     u = url_s1("secreto")
     assert u.split("/")[-1] not in url_corta(u)
     assert u.split("/")[-1] not in _sin_token(f"error en {u} y /file/get/x", u)
+
+
+def test_certificado_adicional(entorno, tmp_path):
+    import pytest
+    from migracion_digicorp.descarga import ErrorEntorno, armar_bundle_certificados
+    entorno.cfg.certificado_adicional = str(tmp_path / "no.pem")
+    with pytest.raises(ErrorEntorno, match="No existe"):
+        armar_bundle_certificados(entorno.cfg)
+    pem = escribir(tmp_path / "empresa.pem", b"-----BEGIN CERTIFICATE-----\nAAA\n-----END CERTIFICATE-----\n")
+    entorno.cfg.certificado_adicional = str(pem)
+    bundle = armar_bundle_certificados(entorno.cfg)
+    assert bundle.read_bytes().endswith(pem.read_bytes()) and bundle.stat().st_size > 10_000
