@@ -406,3 +406,20 @@ def test_error_de_entorno_detiene_la_ejecucion(entorno):
     assert res.motivo_fin == "ERROR_DE_ENTORNO" and res.publicados == 0
     assert estado_de(entorno, CUIT_A) is None and estado_de(entorno, CUIT_B) is None  # se reprocesan después
     assert list(entorno.cfg.dir_staging.iterdir()) == []
+
+
+def test_dominio_postergado(entorno):
+    entorno.cliente_normal(CUIT_A)  # tiene enlaces s1gateway
+    c = cuit("2077777777")
+    escribir(entorno.origen / c / "Contratos Fija" / "60777777" / "Contrato.pdf", pdf_bytes())
+    entorno.excel()
+    entorno.cfg.dominios_postergados = ("cdnva.s1gateway.com",)
+    res = correr(entorno)
+    assert res.publicados == 1 and res.contadores == {"POSTERGADO": 1, "PUBLICADO": 1}
+    assert estado_de(entorno, CUIT_A) == "POSTERGADO" and estado_de(entorno, c) == "PUBLICADO"
+    assert entorno.sesion.llamadas == []  # no se intentó descargar nada de s1gateway
+    assert not (entorno.destino / CUIT_A).exists()
+    # en la otra máquina (sin postergar) se migra normalmente
+    entorno.cfg.dominios_postergados = ()
+    res = correr(entorno)
+    assert res.publicados == 1 and estado_de(entorno, CUIT_A) == "PUBLICADO"

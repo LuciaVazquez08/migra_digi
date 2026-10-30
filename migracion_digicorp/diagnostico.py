@@ -120,6 +120,15 @@ def diagnosticar(cuit: str, ruta: Path, entradas: list[Entrada], ref: Referencia
     elif not migrables and not plan.bloqueado:
         plan.incidir(ruta, "CLIENTE_SIN_DOCUMENTACION", "El cliente no tiene ningún documento migrable")
     _detectar_colisiones(plan)
+    if cfg.dominios_postergados:
+        for a in plan.acciones:
+            host = (urlsplit(a.url).hostname or "").lower() if a.tipo == TipoAccion.DESCARGAR and a.url else ""
+            if host in cfg.dominios_postergados:
+                plan.postergado_por.add(host)
+        if plan.postergado_por:
+            plan.incidir(ruta, "POSTERGADO", "Necesita descargar de " + ", ".join(sorted(plan.postergado_por))
+                         + ": se migra en una ejecución posterior", manual=False, bloqueante=False,
+                         accion="Postergar", resultado="Sin descargar ni migrar")
     return plan
 
 

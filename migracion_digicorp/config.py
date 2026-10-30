@@ -62,6 +62,9 @@ class Config:
     # Dominios de descarga directa que se bajan con el navegador en lugar de Python, para usar su red
     # y sus certificados (p. ej. cuando la red corporativa intercepta HTTPS).
     dominios_via_navegador: tuple[str, ...] = ()
+    # Clientes que necesitan descargar de estos dominios quedan POSTERGADOS: no se descargan ni se
+    # migran en esta máquina y se procesan en una ejecución posterior (p. ej. en otro equipo).
+    dominios_postergados: tuple[str, ...] = ()
 
     # --- Conversión ----------------------------------------------------------
     convertir_office: bool = True

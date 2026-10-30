@@ -132,7 +132,15 @@ Antes de publicar se verifica:
 La publicación es un único `rename` del staging al destino, en el mismo volumen. Si la
 verificación posterior falla, el resultado se retira del destino.
 
-## 10. Operación
+## 10. Clientes postergados
+
+Con `dominios_postergados = ["cdnva.s1gateway.com"]`, todo cliente que de otro modo estaría APTO pero
+necesita descargar algún enlace de esos dominios queda en estado `POSTERGADO`: no se descarga ni se
+migra nada de él, no cuenta como error y se procesa en una ejecución posterior sin esa opción (por
+ejemplo en un equipo con el certificado de inspección SSL instalado). Un cliente con incidencias
+bloqueantes sigue en REVISION_MANUAL / NO_APTO aunque además dependa de un dominio postergado.
+
+## 11. Operación
 
 - `modo = "simulacion"` por defecto. `migrar` arma y valida el staging, y lo borra sin publicar.
 - Para publicar hace falta `modo = "real"` y `--confirmar-ejecucion-real`, y escribir `MIGRAR`.

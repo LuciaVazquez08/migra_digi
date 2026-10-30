@@ -14,6 +14,7 @@ class EstadoCliente(str, Enum):
     PUBLICADO = "PUBLICADO"
     OMITIDO_YA_PUBLICADO = "OMITIDO_YA_PUBLICADO"
     INTERRUMPIDO = "INTERRUMPIDO"
+    POSTERGADO = "POSTERGADO"              # apto, pero depende de un dominio postergado (otra máquina)
 
 
 class TipoAccion(str, Enum):
@@ -74,6 +75,7 @@ class Plan:
     incidencias: list[Incidencia] = field(default_factory=list)
     carpetas: int = 0
     archivos: int = 0
+    postergado_por: set[str] = field(default_factory=set)  # dominios postergados que necesita
 
     def incidir(self, ruta, tipo: str, descripcion: str, *, manual: bool = True,
                 bloqueante: bool = True, accion: str = "", resultado: str = "") -> None:
@@ -90,7 +92,7 @@ class Plan:
     def estado(self) -> EstadoCliente:
         bloqueantes = [i for i in self.incidencias if i.bloqueante]
         if not bloqueantes:
-            return EstadoCliente.APTO
+            return EstadoCliente.POSTERGADO if self.postergado_por else EstadoCliente.APTO
         if any(i.requiere_manual for i in bloqueantes):
             return EstadoCliente.REVISION_MANUAL
         return EstadoCliente.NO_APTO

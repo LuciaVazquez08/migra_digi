@@ -64,6 +64,19 @@ Filtros disponibles en `inventario`, `diagnostico` y `migrar`:
 - El failsafe detiene la ejecución real al llegar a 2000 clientes publicados. Para continuar,
   ejecutá el comando otra vez.
 
+## Migrar ahora lo que no depende de un dominio bloqueado
+
+Si un dominio no se puede descargar en este equipo (p. ej. s1gateway por la inspección SSL de
+Fortinet), agregar en `config.local.toml`:
+
+```toml
+dominios_postergados = ["cdnva.s1gateway.com"]
+```
+
+Esos clientes quedan `POSTERGADO` y se migran después en otro equipo (copiando la carpeta `trabajo\`
+para conservar el estado, o con una carpeta de trabajo nueva: los ya publicados se detectan porque su
+carpeta de destino existe y no se sobrescriben).
+
 ## Salidas (en `trabajo\`)
 
 | Ruta | Contenido |

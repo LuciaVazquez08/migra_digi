@@ -31,6 +31,8 @@ navegador_visible = false        # true para ver el navegador trabajando
 # Si la red no deja a Python validar HTTPS (ERROR_DE_ENTORNO por certificado), descargar estos
 # dominios con el navegador, que usa su propia red y certificados:
 # dominios_via_navegador = ["cdnva.s1gateway.com"]
+# Postergar los clientes que necesitan estos dominios (se migran después, p. ej. en otra máquina):
+# dominios_postergados = ["cdnva.s1gateway.com"]
 
 convertir_office = true
 # soffice = 'C:\Program Files\LibreOffice\program\soffice.exe'

@@ -228,7 +228,7 @@ def _procesar_cliente(cfg: Config, op: Opciones, nombre: str, ruta: Path, ref: R
     if op.comando == COMANDO_INVENTARIO or (op.comando == COMANDO_DIAGNOSTICO and not op.validar_urls):
         return _cerrar(plan, plan.estado.value, destino, None, reporte, estado, id_ejecucion, registrar=False)
 
-    if plan.bloqueado:
+    if plan.bloqueado or plan.postergado_por:
         return _cerrar(plan, plan.estado.value, destino, None, reporte, estado, id_ejecucion)
 
     if op.comando == COMANDO_DIAGNOSTICO:  # --validar-urls: descarga y valida, no prepara
