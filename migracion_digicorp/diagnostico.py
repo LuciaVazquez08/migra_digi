@@ -279,32 +279,28 @@ def _procesar_facultativa(plan: Plan, arbol: _Arbol, cont: Entrada, cfg: Config,
             _planificar_archivo(plan, e, (DEST_MOVIL, DEST_FACULTATIVA), cfg, soffice)
             continue
 
+        # Regla confirmada: "Copia X" se genera a partir de X cargado en Documentación Móvil, por lo
+        # que es un duplicado aunque apunte a otro destino (p. ej. SharePoint) o no tenga URL legible.
+        # Se excluye si el original X existe en Móvil o si su enlace es idéntico a uno de Móvil.
         url = leer_url(e.ruta)
-        if not url:
-            plan.incidir(e.ruta, "COPIA_ILEGIBLE",
-                         f"La copia no contiene una URL legible ({e.tamano} bytes): no puede compararse con el "
-                         "original de Documentación Móvil")
-            continue
         candidatos = urls_movil.get(R.normalizar(original), [])
-        coincidente = next((c for c, u in candidatos if url and u == url), None)
-        if coincidente is None and url and url in todas_las_urls_movil:
-            coincidente = next(c for lst in urls_movil.values() for c, u in lst if u == url)
-        if coincidente is not None:
-            plan.acciones.append(Accion(TipoAccion.EXCLUIR_DUPLICADO, e.ruta, e.rel, url=url,
-                                        detalle=f"Copia del enlace {coincidente.ruta}"))
-            plan.incidir(e.ruta, "DUPLICADO_EXCLUIDO",
-                         f"Copia de '{coincidente.ruta}' (mismo enlace)", manual=False, bloqueante=False,
-                         accion="Excluir copia", resultado="Se conserva el original en Documentación Móvil")
-        elif candidatos:
-            dominio_copia = urlsplit(url).hostname or "?"
-            dominios_orig = sorted({urlsplit(u).hostname or "?" for _, u in candidatos if u})
-            plan.incidir(e.ruta, "COPIA_CON_ENLACE_DISTINTO",
-                         f"La copia apunta a '{dominio_copia}' y el original '{candidatos[0][0].ruta}' a "
-                         f"{', '.join(dominios_orig) or '(sin URL)'}: no puede confirmarse que sea el mismo documento")
+        if candidatos:
+            ref = next((c for c, u in candidatos if url and u == url), candidatos[0][0])
+            criterio = "mismo nombre y mismo enlace" if url and any(u == url for _, u in candidatos) \
+                else f"mismo nombre (enlace de la copia: {urlsplit(url).hostname if url else 'ilegible'})"
+        elif url and url in todas_las_urls_movil:
+            ref = next(c for lst in urls_movil.values() for c, u in lst if u == url)
+            criterio = "mismo enlace"
         else:
             plan.incidir(e.ruta, "COPIA_SIN_ORIGINAL",
-                         "Archivo con nombre de copia cuyo enlace original no se encontró en Documentación "
+                         f"Copia de '{original}', pero no existe ese archivo ni el mismo enlace en Documentación "
                          "Móvil del cliente: no puede confirmarse que el documento esté representado")
+            continue
+        plan.acciones.append(Accion(TipoAccion.EXCLUIR_DUPLICADO, e.ruta, e.rel, url=url,
+                                    detalle=f"Copia de {ref.ruta} ({criterio})"))
+        plan.incidir(e.ruta, "DUPLICADO_EXCLUIDO", f"Copia de '{ref.ruta}' ({criterio})", manual=False,
+                     bloqueante=False, accion="Excluir copia",
+                     resultado="Se conserva el original en Documentación Móvil")
 
 
 # ---------------------------------------------------------------------------

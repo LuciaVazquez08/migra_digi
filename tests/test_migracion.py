@@ -379,16 +379,17 @@ def test_cliente_solo_con_url_invalidas_no_se_reporta_sin_documentacion(entorno)
     assert "CLIENTE_SIN_DOCUMENTACION" not in tipos
 
 
-def test_copia_sin_url_legible(entorno):
+def test_copia_sin_url_legible_con_original_se_excluye(entorno):
     raiz = entorno.cliente_normal(CUIT_A)
     escribir(raiz / f"Documentación Facultativa {CUIT_A}" / "Copia DNI 1.url", b"[InternetShortcut]\r\n")
     entorno.excel()
-    _bloqueado(entorno, CUIT_A, "COPIA_ILEGIBLE")
+    assert correr(entorno).publicados == 1  # existe 'DNI 1.url' en Móvil: la copia se excluye
 
 
-def test_copia_con_enlace_distinto_al_original(entorno):
+def test_copia_con_enlace_distinto_y_original_se_excluye(entorno):
     raiz = entorno.cliente_normal(CUIT_A)
     escribir(raiz / f"Documentación Facultativa {CUIT_A}" / "Copia DNI 1.url",
              b"[InternetSortcut]\r\nURL=https://claroaup.sharepoint.com/:b:/s/docs/abc\r\n")
     entorno.excel()
-    _bloqueado(entorno, CUIT_A, "COPIA_CON_ENLACE_DISTINTO")
+    assert correr(entorno).publicados == 1
+    assert not any("DNI 1" in a and "Facultativa" in a for a in archivos_destino(entorno, CUIT_A))

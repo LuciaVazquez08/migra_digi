@@ -61,10 +61,9 @@ bloquea (`CLIENTE_SIN_DOCUMENTACION`).
 | Archivo | Destino |
 |---|---|
 | `.url` cuyo nombre no es de copia | descarga → `Documentacion Movil\Documentacion Facultativa\<nombre>.pdf` |
-| `Copia X.url` / `Copia de X.url` / `X - copia.url` cuyo enlace es idéntico al de un `.url` de Documentación Móvil del cliente | **se excluye** (copia exacta) y se registra cuál original la representa |
-| Copia cuyo original existe en Móvil pero con **otro** enlace (p. ej. SharePoint vs. s1gateway) | bloquea (`COPIA_CON_ENLACE_DISTINTO`) — pendiente de decisión |
-| Copia sin URL legible | bloquea (`COPIA_ILEGIBLE`) |
-| Copia cuyo enlace no aparece en Móvil y sin original con ese nombre | bloquea (`COPIA_SIN_ORIGINAL`) |
+| `Copia X.url` / `Copia de X.url` / `X - copia.url` cuyo original `X.url` existe en Documentación Móvil del cliente | **se excluye**, aunque apunte a otro destino (p. ej. SharePoint) o no tenga URL legible: la copia se genera a partir de lo cargado en Móvil. Se registra qué original la representa y con qué criterio |
+| Copia sin original con ese nombre, pero con un enlace idéntico a uno de Móvil | se excluye |
+| Copia sin original ni enlace coincidente en Móvil | bloquea (`COPIA_SIN_ORIGINAL`) |
 | Cualquier otro formato | `Documentacion Corpo Fija\Documentacion Facultativa\` (con conversión, ver §6) |
 | Subcarpeta | bloquea |
 
