@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from . import reglas as R
 from .config import Config
@@ -294,6 +295,12 @@ def _procesar_facultativa(plan: Plan, arbol: _Arbol, cont: Entrada, cfg: Config,
             plan.incidir(e.ruta, "DUPLICADO_EXCLUIDO",
                          f"Copia de '{coincidente.ruta}' (mismo enlace)", manual=False, bloqueante=False,
                          accion="Excluir copia", resultado="Se conserva el original en Documentación Móvil")
+        elif candidatos:
+            dominio_copia = urlsplit(url).hostname or "?"
+            dominios_orig = sorted({urlsplit(u).hostname or "?" for _, u in candidatos if u})
+            plan.incidir(e.ruta, "COPIA_CON_ENLACE_DISTINTO",
+                         f"La copia apunta a '{dominio_copia}' y el original '{candidatos[0][0].ruta}' a "
+                         f"{', '.join(dominios_orig) or '(sin URL)'}: no puede confirmarse que sea el mismo documento")
         else:
             plan.incidir(e.ruta, "COPIA_SIN_ORIGINAL",
                          "Archivo con nombre de copia cuyo enlace original no se encontró en Documentación "

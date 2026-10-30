@@ -38,6 +38,8 @@ def test_leer_url(tmp_path):
     assert leer_url(escribir(tmp_path / "a.url", contenido_url(u))) == u
     assert leer_url(escribir(tmp_path / "b.url", b"[InternetShortcut]\r\n")) is None
     assert leer_url(escribir(tmp_path / "c.url", b"[Otra]\r\nURL=https://x\r\n")) is None
+    assert leer_url(escribir(tmp_path / "d.url", b"[InternetSortcut]\r\nURL=https://claroaup.sharepoint.com/x\r\n")) \
+        == "https://claroaup.sharepoint.com/x"
 
 
 def test_validar_url(entorno):

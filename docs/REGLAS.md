@@ -62,7 +62,9 @@ bloquea (`CLIENTE_SIN_DOCUMENTACION`).
 |---|---|
 | `.url` cuyo nombre no es de copia | descarga → `Documentacion Movil\Documentacion Facultativa\<nombre>.pdf` |
 | `Copia X.url` / `Copia de X.url` / `X - copia.url` cuyo enlace es idéntico al de un `.url` de Documentación Móvil del cliente | **se excluye** (copia exacta) y se registra cuál original la representa |
-| Copia cuyo enlace no aparece en Móvil | bloquea (`COPIA_SIN_ORIGINAL`) |
+| Copia cuyo original existe en Móvil pero con **otro** enlace (p. ej. SharePoint vs. s1gateway) | bloquea (`COPIA_CON_ENLACE_DISTINTO`) — pendiente de decisión |
+| Copia sin URL legible | bloquea (`COPIA_ILEGIBLE`) |
+| Copia cuyo enlace no aparece en Móvil y sin original con ese nombre | bloquea (`COPIA_SIN_ORIGINAL`) |
 | Cualquier otro formato | `Documentacion Corpo Fija\Documentacion Facultativa\` (con conversión, ver §6) |
 | Subcarpeta | bloquea |
 
@@ -72,7 +74,7 @@ bloquea (`CLIENTE_SIN_DOCUMENTACION`).
 
 | Tipo | Tratamiento |
 |---|---|
-| `.url` | Se lee `URL=` de `[InternetShortcut]`, se valida y se descarga a `<nombre>.pdf` |
+| `.url` | Se lee `URL=` de `[InternetShortcut]` (también la variante mal escrita `[InternetSortcut]` presente en las copias), se valida y se descarga a `<nombre>.pdf` |
 | `.pdf` | Se valida (§7) y se copia; si es inválido, bloquea (`PDF_CORRUPTO`) |
 | Imágenes (`jpg jpeg jfif png bmp tif tiff gif`) | Se convierten a PDF (todas las páginas). Si no se puede, se copia el original |
 | Office (`doc docx ppt pptx rtf odt`) | Se convierten a PDF con LibreOffice si está instalado. Si no, se copia el original |

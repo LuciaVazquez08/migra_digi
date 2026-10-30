@@ -26,6 +26,10 @@ _RE_TOKEN_S1 = re.compile(r"/file/get/([A-Za-z0-9+/]+={0,2})")
 _TIPOS_IMAGEN = {"jpeg", "png", "tiff", "gif", "bmp"}
 
 
+# "[InternetSortcut]" (sin la h) aparece en copias generadas por un proceso automático.
+_SECCIONES_URL = ("[internetshortcut]", "[internetsortcut]")
+
+
 def leer_url(ruta: Path) -> str | None:
     """Extrae ``URL=`` de la sección ``[InternetShortcut]`` de un archivo .url."""
     with open(largo(ruta), "rb") as fh:
@@ -33,7 +37,7 @@ def leer_url(ruta: Path) -> str | None:
     for codificacion in ("utf-8-sig", "utf-16", "cp1252"):
         try:
             texto = crudo.decode(codificacion)
-            if "[InternetShortcut]" in texto or "URL=" in texto.upper():
+            if "URL=" in texto.upper():
                 break
         except UnicodeDecodeError:
             continue
@@ -43,7 +47,7 @@ def leer_url(ruta: Path) -> str | None:
     for linea in texto.splitlines():
         linea = linea.strip()
         if linea.startswith("["):
-            en_seccion = linea.lower() == "[internetshortcut]"
+            en_seccion = linea.lower() in _SECCIONES_URL
             continue
         if en_seccion and linea.upper().startswith("URL="):
             valor = linea[4:].strip()

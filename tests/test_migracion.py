@@ -384,3 +384,11 @@ def test_copia_sin_url_legible(entorno):
     escribir(raiz / f"Documentación Facultativa {CUIT_A}" / "Copia DNI 1.url", b"[InternetShortcut]\r\n")
     entorno.excel()
     _bloqueado(entorno, CUIT_A, "COPIA_ILEGIBLE")
+
+
+def test_copia_con_enlace_distinto_al_original(entorno):
+    raiz = entorno.cliente_normal(CUIT_A)
+    escribir(raiz / f"Documentación Facultativa {CUIT_A}" / "Copia DNI 1.url",
+             b"[InternetSortcut]\r\nURL=https://claroaup.sharepoint.com/:b:/s/docs/abc\r\n")
+    entorno.excel()
+    _bloqueado(entorno, CUIT_A, "COPIA_CON_ENLACE_DISTINTO")
