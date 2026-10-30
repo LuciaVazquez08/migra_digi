@@ -1,4 +1,4 @@
-# Muestra la cadena de certificados que este equipo recibe al conectarse a un servidor HTTPS.
+﻿# Muestra la cadena de certificados que este equipo recibe al conectarse a un servidor HTTPS.
 # Solo LEE el certificado (no envía ni descarga ningún documento). Sirve para saber quién lo emite:
 # la red de la empresa (inspección SSL) o el propio servidor.
 #
@@ -16,9 +16,13 @@ $cert = New-Object Security.Cryptography.X509Certificates.X509Certificate2($ssl.
 $ssl.Close(); $tcp.Close()
 
 $cadena = New-Object Security.Cryptography.X509Certificates.X509Chain
+# Sin consultar revocación: si el servidor de revocación no responde no es un problema de confianza.
+$cadena.ChainPolicy.RevocationMode = 'NoCheck'
 $valido = $cadena.Build($cert)
 "Servidor:          $Servidor"
 "Válido en Windows: $valido"
+foreach ($s in $cadena.ChainStatus) { "Estado de cadena:  $($s.Status) - $($s.StatusInformation.Trim())" }
+"Elementos en la cadena: $($cadena.ChainElements.Count) (1 = Windows no encontró el certificado raíz del emisor)"
 $i = 0
 foreach ($e in $cadena.ChainElements) {
     ""
@@ -29,6 +33,12 @@ foreach ($e in $cadena.ChainElements) {
     foreach ($s in $e.ChainElementStatus) { "    Problema:     $($s.StatusInformation.Trim())" }
     $i++
 }
+""
+"Certificados 'Fortinet' instalados en este equipo:"
+Get-ChildItem Cert:\CurrentUser\Root, Cert:\LocalMachine\Root, Cert:\CurrentUser\CA, Cert:\LocalMachine\CA |
+    Where-Object { $_.Subject -like '*Fortinet*' -or $_.Subject -like '*FG3K5*' } |
+    ForEach-Object { "    $($_.PSParentPath.Split(':')[-1]) | $($_.Subject) | $($_.Thumbprint)" }
+
 if ($GuardarRaiz) {
     $raiz = $cadena.ChainElements[$cadena.ChainElements.Count - 1].Certificate
     $pem = "-----BEGIN CERTIFICATE-----`r`n" + [Convert]::ToBase64String($raiz.RawData, 'InsertLineBreaks') + "`r`n-----END CERTIFICATE-----`r`n"
