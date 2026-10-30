@@ -122,3 +122,18 @@ GitHub Actions los ejecuta en Windows y Linux en cada push.
 - Proteger `main` en GitHub (Settings → Branches): los cambios entran por pull request con los tests en verde.
 - Un cambio de regla actualiza primero `docs/REGLAS.md` e incluye un test que lo cubra.
 - Nunca subas datos reales (Excel, `.url`, PDF, reportes): el `.gitignore` los bloquea.
+
+## Problemas de red
+
+Si la ejecución se detiene con `ERROR_DE_ENTORNO` por un certificado HTTPS "no de confianza":
+
+1. El programa ya valida con el almacén de certificados de Windows (`truststore`).
+2. Si igual falla, la red corporativa suele usar un **proxy con script PAC** que el navegador sigue y
+   Python no. Pedir a sistemas la dirección del proxy y definirla antes de ejecutar:
+   ```powershell
+   $env:HTTPS_PROXY = "http://proxy.empresa:8080"
+   ```
+3. O pedir el certificado raíz de inspección SSL (`.pem`) y definir
+   `$env:REQUESTS_CA_BUNDLE = "C:\ruta\certificado.pem"`.
+
+Nunca desactivar la verificación de certificados.

@@ -220,11 +220,13 @@ class Descargador:
             except ErrorConfiguracionNavegador as exc:
                 raise ErrorEntorno(str(exc)) from exc
             except requests.exceptions.SSLError as exc:
-                if "CERTIFICATE_VERIFY_FAILED" in str(exc):
+                texto = str(exc)
+                if any(m in texto for m in ("CERTIFICATE_VERIFY_FAILED", "SSLCertVerificationError",
+                                            "certificate chain", "not trusted")):
                     raise ErrorEntorno(
-                        "Python no confía en el certificado HTTPS de la red (inspección SSL corporativa). "
-                        "Instalar 'truststore' (pip install -r requirements.txt) para usar los certificados "
-                        "de Windows, o configurar REQUESTS_CA_BUNDLE con el certificado de la empresa.") from exc
+                        f"El certificado HTTPS de {urlsplit(url).hostname} no es de confianza en este equipo "
+                        "(probable inspección SSL o proxy corporativo). Ver 'Problemas de red' en el README. "
+                        f"Detalle: {_sin_token(texto, url)[-160:]}") from exc
                 ultimo_error = f"SSLError: {_sin_token(str(exc), url)}"
                 log.warning("Intento %d/%d fallido para %s: %s", intentos, self.cfg.reintentos + 1,
                             url_corta(url), ultimo_error)

@@ -178,6 +178,13 @@ def test_problemas_de_entorno_detienen_sin_reintentar(entorno):
     with pytest.raises(ErrorEntorno, match="certificado"):
         d.obtener(u)
     assert entorno.sesion.llamadas.count(u) == 1
+    u2 = url_s1("ssl2")
+    entorno.sesion.respuestas[u2] = requests.exceptions.SSLError(
+        "SSLCertVerificationError('A certificate chain processed, but terminated in a root certificate which "
+        "is not trusted by the trust provider.')")
+    with pytest.raises(ErrorEntorno):
+        d.obtener(u2)
+    assert entorno.sesion.llamadas.count(u2) == 1
 
 
 def test_logs_sin_token():
