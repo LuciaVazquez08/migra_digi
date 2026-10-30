@@ -39,6 +39,12 @@ class Manejador(BaseHTTPRequestHandler):
                 cuerpo, tipo, adjunto = b"PK\x03\x04docx", "application/octet-stream", "doc.docx"
             else:
                 cuerpo, tipo, adjunto = pdf_bytes(2), "application/pdf", "doc.pdf"
+        elif self.path.startswith("/file/inline"):
+            cuerpo, tipo, adjunto = pdf_bytes(3), "application/pdf", None
+        elif self.path.startswith("/file/adjunto"):
+            cuerpo, tipo, adjunto = pdf_bytes(4), "application/pdf", "x.pdf"
+        elif self.path.startswith("/file/html"):
+            cuerpo, tipo, adjunto = b"<html><body>login</body></html>", "text/html", None
         elif self.path.startswith("/comopdf"):
             cuerpo, tipo, adjunto = pdf_bytes(1), "application/pdf", "doc.pdf"
         else:
@@ -96,3 +102,24 @@ def test_pagina_sin_boton_es_error_permanente(servicio, servidor, tmp_path):
         servicio.descargar(f"{servidor}/sfc/p/#vencido", tmp_path / "c.pdf")
     if isinstance(e.value, ErrorConfiguracionNavegador):
         pytest.skip("Navegador no disponible")
+
+
+def _archivo(servicio, url, destino):
+    try:
+        servicio.descargar_archivo(url, destino)
+    except ErrorConfiguracionNavegador as exc:
+        pytest.skip(f"Navegador no disponible: {exc}")
+
+
+def test_archivo_directo_en_linea_y_adjunto(servicio, servidor, tmp_path):
+    _archivo(servicio, f"{servidor}/file/inline", tmp_path / "i.pdf")
+    assert validar_pdf(tmp_path / "i.pdf").paginas == 3
+    _archivo(servicio, f"{servidor}/file/adjunto", tmp_path / "a.pdf")
+    assert validar_pdf(tmp_path / "a.pdf").paginas == 4
+
+
+def test_archivo_directo_html_y_404(servicio, servidor, tmp_path):
+    _archivo(servicio, f"{servidor}/file/html", tmp_path / "h.pdf")
+    assert detectar_tipo(tmp_path / "h.pdf") == "html"  # luego la validación lo rechaza
+    with pytest.raises(ErrorNavegadorPermanente, match="404"):
+        servicio.descargar_archivo(f"{servidor}/no-existe", tmp_path / "n.pdf")

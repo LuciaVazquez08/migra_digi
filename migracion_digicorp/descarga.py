@@ -254,6 +254,8 @@ class Descargador:
         """Descarga en streaming a ``tmp``. Lanza ErrorPermanente o excepciones reintentables."""
         if es_salesforce(url):
             return self._bajar_salesforce(url, tmp)
+        if (urlsplit(url).hostname or "").lower() in self.cfg.dominios_via_navegador:
+            return self._bajar_salesforce(url, tmp, directo=True)
         resp = self.session.get(url, stream=True, allow_redirects=True,
                                 timeout=(self.cfg.timeout_conexion, self.cfg.timeout_lectura))
         try:
@@ -286,16 +288,19 @@ class Descargador:
         finally:
             resp.close()
 
-    def _bajar_salesforce(self, url: str, tmp: Path) -> str:
+    def _bajar_salesforce(self, url: str, tmp: Path, directo: bool = False) -> str:
         try:
-            self.navegador().descargar(url, tmp)
+            if directo:
+                self.navegador().descargar_archivo(url, tmp)
+            else:
+                self.navegador().descargar(url, tmp)
         except ErrorNavegadorPermanente as exc:
             raise ErrorPermanente(str(exc)) from exc
         except ErrorNavegador as exc:
             raise IOError(str(exc)) from exc
         tamano = tmp.stat().st_size if tmp.exists() else 0
         if tamano == 0:
-            raise ErrorPermanente("La descarga de Salesforce no devolvió contenido (0 bytes)")
+            raise ErrorPermanente("La descarga con el navegador no devolvió contenido (0 bytes)")
         if tamano > self.cfg.tamano_maximo_descarga:
             raise ErrorPermanente("La descarga supera el tamaño máximo configurado")
         return ""

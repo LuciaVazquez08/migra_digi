@@ -92,6 +92,8 @@ bloquea (`CLIENTE_SIN_DOCUMENTACION`).
   por eso se abre con un navegador automático (Playwright, sin ventana), se presiona **Descargar** y, si
   el original no es PDF ni imagen, **Descargar como PDF**. Si la página no muestra el botón (enlace vencido
   o sin documento), es un error permanente. Solo se usan enlaces que no piden inicio de sesión.
+- Los dominios listados en `dominios_via_navegador` se descargan con el navegador automático (su red y
+  sus certificados) en lugar de Python. El archivo obtenido pasa por exactamente la misma validación.
 - s1gateway: la ruta es `/file/get/<token>` y el token es `base64(base64(bloque cifrado))`. Si alguna
   capa no decodifica o el bloque no es múltiplo de 16 bytes, el enlace está **truncado** y se
   bloquea sin descargar.

@@ -28,6 +28,9 @@ navegadores_simultaneos = 2
 timeout_navegador = 60
 navegador_visible = false        # true para ver el navegador trabajando
 # navegador_canal = "msedge"     # usar el Edge instalado si no se puede instalar Chromium
+# Si la red no deja a Python validar HTTPS (ERROR_DE_ENTORNO por certificado), descargar estos
+# dominios con el navegador, que usa su propia red y certificados:
+# dominios_via_navegador = ["cdnva.s1gateway.com"]
 
 convertir_office = true
 # soffice = 'C:\Program Files\LibreOffice\program\soffice.exe'

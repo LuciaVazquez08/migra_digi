@@ -136,4 +136,12 @@ Si la ejecución se detiene con `ERROR_DE_ENTORNO` por un certificado HTTPS "no 
 3. O pedir el certificado raíz de inspección SSL (`.pem`) y definir
    `$env:REQUESTS_CA_BUNDLE = "C:\ruta\certificado.pem"`.
 
+4. Alternativa sin pedir nada a sistemas: descargar esos dominios con el navegador automático, que
+   usa su propia red y sus certificados (igual que cuando se abre el enlace a mano). En
+   `config.local.toml`:
+   ```toml
+   dominios_via_navegador = ["cdnva.s1gateway.com"]
+   ```
+   Es más lento que la descarga directa, pero no cambia ninguna validación.
+
 Nunca desactivar la verificación de certificados.

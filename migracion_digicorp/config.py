@@ -56,6 +56,9 @@ class Config:
     navegador_visible: bool = False   # True para ver el navegador trabajando (diagnóstico)
     navegador_canal: str = ""         # "msedge" usa el Edge instalado en Windows
     navegador_ejecutable: str = ""    # ruta explícita a un Chrome/Chromium
+    # Dominios de descarga directa que se bajan con el navegador en lugar de Python, para usar su red
+    # y sus certificados (p. ej. cuando la red corporativa intercepta HTTPS).
+    dominios_via_navegador: tuple[str, ...] = ()
 
     # --- Conversión ----------------------------------------------------------
     convertir_office: bool = True
