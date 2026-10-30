@@ -143,7 +143,7 @@ Si la ejecución se detiene con `ERROR_DE_ENTORNO` por un certificado HTTPS "no 
    certificado_adicional = 'C:\ruta\raiz_empresa.pem'
    ```
    Se suma a las autoridades públicas; la verificación sigue activa.
-4. Alternativa sin pedir nada a sistemas: descargar esos dominios con el navegador automático, que
+4. Si el enlace abre a mano en el navegador sin advertencias: descargar esos dominios con el navegador automático, que
    usa su propia red y sus certificados (igual que cuando se abre el enlace a mano). En
    `config.local.toml`:
    ```toml
