@@ -12,3 +12,7 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+
+# Logs y carpetas de trabajo creadas por error en ejecuciones locales
+*.log
+E:*
