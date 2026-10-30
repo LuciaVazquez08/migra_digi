@@ -43,7 +43,18 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
+def _usar_certificados_del_sistema() -> None:
+    """Valida HTTPS con el almacén de certificados de Windows (necesario con inspección SSL
+    corporativa). No desactiva ninguna verificación."""
+    try:
+        import truststore
+        truststore.inject_into_ssl()
+    except ImportError:
+        pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _usar_certificados_del_sistema()
     args = _parser().parse_args(argv)
     cfg = cargar_config(args.config)
     cfg.trabajo.mkdir(parents=True, exist_ok=True)

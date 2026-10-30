@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .archivos import borrar_arbol, mismo_volumen
 from .config import MODO_REAL, Config
-from .descarga import Descargador
+from .descarga import Descargador, ErrorEntorno
 from .diagnostico import diagnosticar
 from .estado import Estado
 from .inventario import Referencia, escanear_cliente, leer_referencia, listar_raiz
@@ -174,8 +174,14 @@ def ejecutar(cfg: Config, op: Opciones, *, referencia: Referencia | None = None,
                                            "Publicado en una ejecución anterior")
                     contar(EstadoCliente.OMITIDO_YA_PUBLICADO.value)
                     continue
-                final = _procesar_cliente(cfg, op, nombre, ruta, referencia, descargador, estado, soffice,
-                                          parar, reporte, id_ejecucion, real, rename)
+                try:
+                    final = _procesar_cliente(cfg, op, nombre, ruta, referencia, descargador, estado, soffice,
+                                              parar, reporte, id_ejecucion, real, rename)
+                except ErrorEntorno as exc:
+                    res.motivo_fin = "ERROR_DE_ENTORNO"
+                    log.error("Ejecución detenida por un problema del equipo o la red (no de los clientes): %s",
+                              exc)
+                    break
                 contar(final)
                 if final == EstadoCliente.PUBLICADO.value:
                     res.publicados += 1
@@ -238,6 +244,8 @@ def _procesar_cliente(cfg: Config, op: Opciones, nombre: str, ruta: Path, ref: R
     except Interrumpido:
         log.warning("%s: interrumpido durante la preparación; se reprocesará en la próxima ejecución", nombre)
         return EstadoCliente.INTERRUMPIDO.value
+    except ErrorEntorno:
+        raise
     except Exception as exc:
         log.exception("%s: error inesperado en la preparación", nombre)
         plan.incidir(ruta, "ERROR_PREPARACION", f"{type(exc).__name__}: {exc}", manual=False)

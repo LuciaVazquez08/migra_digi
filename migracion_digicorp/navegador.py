@@ -40,6 +40,16 @@ class ErrorConfiguracionNavegador(Exception):
     """Playwright o el navegador no están instalados/configurados."""
 
 
+def _buscar_edge() -> str | None:
+    for base in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles"),
+                 os.environ.get("LOCALAPPDATA")):
+        if base:
+            ruta = Path(base) / "Microsoft" / "Edge" / "Application" / "msedge.exe"
+            if ruta.exists():
+                return str(ruta)
+    return None
+
+
 def _selector(titulos: tuple[str, ...]) -> str:
     return ", ".join(f'button.downloadbutton[title="{t}"]' for t in titulos)
 
@@ -73,8 +83,10 @@ class ServicioNavegador:
         opciones = {"headless": not self.cfg.navegador_visible}
         if self.cfg.navegador_ejecutable:
             opciones["executable_path"] = self.cfg.navegador_ejecutable
+        elif self.cfg.navegador_canal == "msedge" and (edge := _buscar_edge()):
+            opciones["executable_path"] = edge  # Edge ya instalado en Windows
         elif self.cfg.navegador_canal:
-            opciones["channel"] = self.cfg.navegador_canal  # p. ej. "msedge" (Edge ya instalado)
+            opciones["channel"] = self.cfg.navegador_canal
         return p.chromium.launch(**opciones)
 
     def _trabajar(self) -> None:

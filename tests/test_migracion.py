@@ -393,3 +393,16 @@ def test_copia_con_enlace_distinto_y_original_se_excluye(entorno):
     entorno.excel()
     assert correr(entorno).publicados == 1
     assert not any("DNI 1" in a and "Facultativa" in a for a in archivos_destino(entorno, CUIT_A))
+
+
+def test_error_de_entorno_detiene_la_ejecucion(entorno):
+    import requests
+    entorno.cliente_normal(CUIT_A)
+    entorno.cliente_normal(CUIT_B, sds="29000001SEC", contrato="60000001")
+    entorno.excel()
+    for u in list(entorno.sesion.respuestas):
+        entorno.sesion.respuestas[u] = requests.exceptions.SSLError("CERTIFICATE_VERIFY_FAILED")
+    res = correr(entorno)
+    assert res.motivo_fin == "ERROR_DE_ENTORNO" and res.publicados == 0
+    assert estado_de(entorno, CUIT_A) is None and estado_de(entorno, CUIT_B) is None  # se reprocesan después
+    assert list(entorno.cfg.dir_staging.iterdir()) == []

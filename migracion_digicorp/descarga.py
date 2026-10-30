@@ -129,6 +129,27 @@ class ResultadoDescarga:
     permanente: bool = False  # True = error no transitorio: requiere revisión manual
 
 
+class ErrorEntorno(Exception):
+    """Problema del equipo o la red (certificados, navegador): no depende del cliente.
+
+    Detiene la ejecución en lugar de marcar a todos los clientes como fallidos.
+    """
+
+
+def url_corta(url: str) -> str:
+    """Versión de la URL apta para logs: sin el token que da acceso al documento."""
+    p = urlsplit(url)
+    return f"{p.scheme}://{p.hostname}{p.path[:16]}…"
+
+
+def _sin_token(texto: str, url: str) -> str:
+    p = urlsplit(url)
+    for parte in (url, p.path, p.fragment):
+        if parte and len(parte) > 3:
+            texto = texto.replace(parte, "…")
+    return texto
+
+
 class ErrorPermanente(Exception):
     """Error que no tiene sentido reintentar."""
 
@@ -173,7 +194,7 @@ class Descargador:
         if previa and previa["estado"] == "OK" and destino.exists():
             if sha256_archivo(destino) == previa["sha256"]:
                 return ResultadoDescarga(True, destino, previa["sha256"], previa["tipo"], desde_cache=True)
-            log.warning("Caché alterada para %s; se descarga de nuevo", url)
+            log.warning("Caché alterada para %s; se descarga de nuevo", url_corta(url))
             destino.unlink()
         if previa and previa["estado"] == "ERROR" and previa["permanente"] and not reintentar_fallidas:
             return ResultadoDescarga(False, error=f"(error previo) {previa['error']}", desde_cache=True,
@@ -197,19 +218,27 @@ class Descargador:
                                                intentos=intentos)
                 return resultado
             except ErrorConfiguracionNavegador as exc:
-                ultimo_error = str(exc)
-                self.estado.registrar_descarga(clave, url, "ERROR", permanente=False, error=ultimo_error,
-                                               intentos=intentos)
-                return ResultadoDescarga(False, error=ultimo_error)
+                raise ErrorEntorno(str(exc)) from exc
+            except requests.exceptions.SSLError as exc:
+                if "CERTIFICATE_VERIFY_FAILED" in str(exc):
+                    raise ErrorEntorno(
+                        "Python no confía en el certificado HTTPS de la red (inspección SSL corporativa). "
+                        "Instalar 'truststore' (pip install -r requirements.txt) para usar los certificados "
+                        "de Windows, o configurar REQUESTS_CA_BUNDLE con el certificado de la empresa.") from exc
+                ultimo_error = f"SSLError: {_sin_token(str(exc), url)}"
+                log.warning("Intento %d/%d fallido para %s: %s", intentos, self.cfg.reintentos + 1,
+                            url_corta(url), ultimo_error)
+                if intentos <= self.cfg.reintentos:
+                    time.sleep(self.cfg.espera_reintento * 2 ** (intentos - 1))
             except ErrorPermanente as exc:
                 ultimo_error = str(exc)
                 self.estado.registrar_descarga(clave, url, "ERROR", permanente=True, error=ultimo_error,
                                                intentos=intentos)
                 return ResultadoDescarga(False, error=ultimo_error, permanente=True)
             except (requests.RequestException, IOError) as exc:
-                ultimo_error = f"{type(exc).__name__}: {exc}"
+                ultimo_error = f"{type(exc).__name__}: {_sin_token(str(exc), url)}"
                 log.warning("Intento %d/%d fallido para %s: %s", intentos, self.cfg.reintentos + 1,
-                            url, ultimo_error)
+                            url_corta(url), ultimo_error)
                 if intentos <= self.cfg.reintentos:
                     time.sleep(self.cfg.espera_reintento * 2 ** (intentos - 1))
             finally:

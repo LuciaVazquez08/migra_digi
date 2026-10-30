@@ -164,8 +164,24 @@ def test_salesforce_reintenta_y_errores(entorno):
     assert not r.ok and "HTML" in r.error
 
 
-def test_salesforce_sin_playwright_no_es_permanente(entorno):
+def test_problemas_de_entorno_detienen_sin_reintentar(entorno):
+    import pytest
+    from migracion_digicorp.descarga import ErrorEntorno
     from migracion_digicorp.navegador import ErrorConfiguracionNavegador
     d, nav = _desc_sf(entorno, [ErrorConfiguracionNavegador("Playwright no está instalado")])
-    r = d.obtener(SF)
-    assert not r.ok and not r.permanente and nav.llamadas == 1
+    with pytest.raises(ErrorEntorno):
+        d.obtener(SF)
+    assert nav.llamadas == 1
+    d, _ = _desc(entorno)
+    u = url_s1("ssl")
+    entorno.sesion.respuestas[u] = requests.exceptions.SSLError("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed")
+    with pytest.raises(ErrorEntorno, match="certificado"):
+        d.obtener(u)
+    assert entorno.sesion.llamadas.count(u) == 1
+
+
+def test_logs_sin_token():
+    from migracion_digicorp.descarga import _sin_token, url_corta
+    u = url_s1("secreto")
+    assert u.split("/")[-1] not in url_corta(u)
+    assert u.split("/")[-1] not in _sin_token(f"error en {u} y /file/get/x", u)
