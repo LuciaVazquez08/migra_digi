@@ -373,6 +373,33 @@ def filtro_por_casos(problemas: list[SdsProblema], casos: list[tuple[str, str]])
     return (lambda nombre: bool(indice.buscar(nombre))), len(ids)
 
 
+def muestra_coincidencias(origen: Path, problemas: list[SdsProblema], casos: list[tuple[str, str]], n: int):
+    """Primeros ``n`` archivos de ``origen`` que se copiarían: [(ruta, {CASE_ID}, {SDS}, [(cuit, sds)])].
+
+    Solo lee nombres: no descarga ni copia nada."""
+    sds_objetivo = {p.sds.upper() for p in problemas}
+    sds_casos = relacionar_sds_casos(sds_objetivo, casos)
+    sds_de_caso: dict[str, set[str]] = defaultdict(set)
+    for s_, cs in sds_casos.items():
+        for c in cs:
+            sds_de_caso[c].add(s_)
+    clientes_de_sds: dict[str, set[str]] = defaultdict(set)
+    for p in problemas:
+        clientes_de_sds[p.sds.upper()].add(p.cuit)
+    indice = _IndiceCasos(set(sds_de_caso))
+    res = []
+    for i, (ruta, _) in enumerate(_recorrer(origen), 1):
+        if i % 20000 == 0:
+            log.info("Muestra: %d archivos revisados, %d coincidencias", i, len(res))
+        encontrados = indice.buscar(ruta.name)
+        if encontrados:
+            sds = {s_ for c in encontrados for s_ in sds_de_caso[c]}
+            res.append((ruta, encontrados, sds, sorted({(cu, s_) for s_ in sds for cu in clientes_de_sds[s_]})))
+            if len(res) >= n:
+                break
+    return res
+
+
 def buscar_casos(problemas: list[SdsProblema], casos: list[tuple[str, str]], carpeta: Path) -> Busqueda:
     sds_objetivo = {p.sds.upper() for p in problemas}
     b = Busqueda()

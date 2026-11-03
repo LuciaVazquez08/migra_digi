@@ -47,6 +47,8 @@ def _parser() -> argparse.ArgumentParser:
     cc.add_argument("--origen", type=Path, help="Carpeta a copiar (por defecto carpeta_casos)")
     cc.add_argument("--unidad", type=Path, help="Unidad/carpeta donde crear la copia (por defecto E:\\)")
     cc.add_argument("--solo-medir", action="store_true", help="Solo mostrar cantidad y tamaño, sin copiar")
+    cc.add_argument("--muestra", type=int, default=0,
+                    help="Con --casos: mostrar los primeros N archivos que se copiarían y terminar (no copia nada)")
     cc.add_argument("--casos", type=Path,
                     help="Copiar solo los archivos de estos CASE_ID (resultado de la consulta, CSV o XLSX); "
                          "requiere haber ejecutado 'sds-problematicas'")
@@ -86,6 +88,25 @@ def _recuperacion(cfg, args) -> int:
         if not origen.is_dir():
             print(f"No existe la carpeta de origen: {origen}")
             return 1
+        if args.muestra:
+            if not args.casos:
+                print("--muestra requiere --casos")
+                return 1
+            problemas = _leer_problemas(carpeta_trabajo)
+            if problemas is None:
+                return 1
+            print(f"Buscando los primeros {args.muestra} archivos que se copiarían en {origen} "
+                  "(solo nombres, no descarga nada)...")
+            encontrados = RC.muestra_coincidencias(origen, problemas, RC.leer_casos(args.casos), args.muestra)
+            for ruta, casos_f, sds_f, cli in encontrados:
+                print(f"\n  Archivo:  {RC._sin_prefijo(ruta)}")
+                print(f"  CASE_ID:  {', '.join(sorted(casos_f))}")
+                print(f"  SDS:      {', '.join(sorted(sds_f))}")
+                print(f"  Clientes: {', '.join(c for c, _ in cli)}")
+                print(f"  En la nube: {'sí' if RC.solo_en_la_nube(ruta) else 'no (ya está en el disco)'}")
+            print(f"\nEncontrados: {len(encontrados)}" + ("" if encontrados else
+                  " — ningún nombre de archivo contiene los CASE_ID de las SDS problemáticas"))
+            return 0
         filtro = None
         if args.casos:
             problemas = _leer_problemas(carpeta_trabajo)

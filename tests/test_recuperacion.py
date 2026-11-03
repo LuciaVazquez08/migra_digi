@@ -110,3 +110,13 @@ def test_leer_password(tmp_path):
     assert RC.leer_password(p) == "secreto"
     with pytest.raises(FileNotFoundError):
         RC.leer_password(tmp_path / "no.txt")
+
+
+def test_muestra_coincidencias(tmp_path):
+    origen = tmp_path / "AMX Argentina S.A"
+    for i in range(5):
+        escribir(origen / "x" / f"Caso 0012345{i}.pdf", pdf_bytes())
+    probs = [RC.SdsProblema(CUIT_A, "29067459SEC", "SDS.url", "POSTERGADO")]
+    casos = [("SDS 29067459sec", f"0012345{i}") for i in range(5)]
+    res = RC.muestra_coincidencias(origen, probs, casos, 2)
+    assert len(res) == 2 and res[0][2] == {"29067459SEC"} and res[0][3] == [(CUIT_A, "29067459SEC")]
