@@ -73,6 +73,11 @@ def _recuperacion(cfg, args) -> int:
     from .orquestador import Parada
 
     carpeta_trabajo = cfg.trabajo / "recuperacion"
+    if getattr(args, "casos", None) and not args.casos.is_file():
+        print(f"No existe el archivo de casos: {args.casos}\n"
+              "Primero ejecutar la consulta SQL (consulta_case_id_unica.sql) y exportar el resultado "
+              "(columnas SUBJECT y CASE_ID) a ese archivo.")
+        return 1
     if args.comando == "copiar-carpeta":
         origen = args.origen or cfg.carpeta_casos
         destino = RC.destino_espejo(origen, args.unidad or cfg.unidad_copia_casos)
