@@ -187,7 +187,13 @@ documentos en la carpeta de casos (OneDrive) por su CASE_ID. **No migra nada**: 
    python -m migracion_digicorp --config config.real.toml sds-problematicas
    ```
    Genera `trabajo\recuperacion\sds_problematicas.csv` y `consulta_case_id.sql`.
-3. **Ejecutar la consulta** en la base y exportar el resultado (columnas `SUBJECT`, `CASE_ID`) a CSV o XLSX.
+3. **Obtener los CASE_ID desde Oracle** (lee la contraseña de la primera línea de `oracle_archivo_password`,
+   por defecto `E:\Migracion Digicorp\Pswd.txt`; nunca se muestra ni se guarda):
+   ```powershell
+   python -m migracion_digicorp --config config.real.toml consultar-casos
+   ```
+   Genera `trabajo\recuperacion\casos.csv`. (Alternativa: ejecutar `consulta_case_id_unica.sql` a mano y
+   exportar `SUBJECT`, `CASE_ID` a CSV.)
 4. **Buscar y validar:**
    ```powershell
    python -m migracion_digicorp --config config.real.toml buscar-casos --casos "E:\Migracion Digicorp\casos.csv"

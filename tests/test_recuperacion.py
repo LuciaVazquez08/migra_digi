@@ -78,3 +78,35 @@ def test_copiar_solo_casos(tmp_path):
     destino = RC.destino_espejo(origen, tmp_path / "E")
     r = RC.copiar_carpeta(origen, destino, tmp_path / "m.csv", 0, filtro=filtro)
     assert r.copiados == 1 and [p.name for p in destino.rglob("*.pdf")] == ["Caso 00123456.pdf"]
+
+
+def test_consultar_casos_con_conexion_falsa(entorno, tmp_path):
+    class Cursor:
+        arraysize = 0
+        def execute(self, sql):
+            assert "REGEXP_LIKE" in sql
+            self.filas = [("SDS 29067459sec\nalta", 123), (None, "5004"), ("x", None)]
+        def fetchmany(self, n):
+            lote, self.filas = self.filas[:2], self.filas[2:]
+            return lote
+
+    class Conexion:
+        cerrada = False
+        def cursor(self):
+            return Cursor()
+        def close(self):
+            Conexion.cerrada = True
+
+    salida = tmp_path / "casos.csv"
+    n = RC.consultar_casos(entorno.cfg, salida, conectar=Conexion, por_lote=2)
+    assert n == 3 and Conexion.cerrada
+    assert RC.leer_casos(salida)[:2] == [("SDS 29067459sec alta", "123"), ("", "5004")]
+
+
+def test_leer_password(tmp_path):
+    import pytest
+    p = tmp_path / "Pswd.txt"
+    p.write_text("secreto\notra linea\n", encoding="utf-8")
+    assert RC.leer_password(p) == "secreto"
+    with pytest.raises(FileNotFoundError):
+        RC.leer_password(tmp_path / "no.txt")

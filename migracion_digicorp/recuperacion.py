@@ -403,3 +403,60 @@ def escribir_reporte(problemas: list[SdsProblema], b: Busqueda, ruta: Path) -> d
     ruta.parent.mkdir(parents=True, exist_ok=True)
     wb.save(ruta)
     return dict(totales)
+
+
+# ---------------------------------------------------------------------------
+# 2b. Consulta Oracle directa
+# ---------------------------------------------------------------------------
+
+CONSULTA_CASOS = ("SELECT SUBJECT, CASE_ID FROM RACING.CD_CASE_DETAILS_DUMP "
+                  "WHERE REGEXP_LIKE(SUBJECT, '[0-9]{8}[A-Za-z]{3}')")
+
+
+def leer_password(ruta: Path) -> str:
+    if not ruta.is_file():
+        raise FileNotFoundError(f"No existe el archivo de contraseña: {ruta}")
+    primer_renglon = ruta.read_text(encoding="utf-8-sig").splitlines()[0].strip() if ruta.stat().st_size else ""
+    if not primer_renglon:
+        raise ValueError(f"El archivo de contraseña está vacío: {ruta}")
+    return primer_renglon
+
+
+def consultar_casos(cfg: Config, destino: Path, conectar=None, por_lote: int = 10_000) -> int:
+    """Ejecuta la consulta en Oracle y guarda SUBJECT;CASE_ID en ``destino`` (CSV) en streaming.
+
+    ``conectar`` permite inyectar la conexión en pruebas. Devuelve la cantidad de filas.
+    """
+    if conectar is None:
+        import oracledb
+        oracledb.defaults.fetch_lobs = False  # SUBJECT como texto aunque sea CLOB
+
+        def conectar():
+            return oracledb.connect(user=cfg.oracle_usuario, password=leer_password(cfg.oracle_archivo_password),
+                                    dsn=cfg.oracle_dsn, expire_time=cfg.oracle_expire_time)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    tmp = destino.with_name(destino.name + ".part")
+    filas = 0
+    con = conectar()
+    try:
+        cur = con.cursor()
+        cur.arraysize = por_lote
+        cur.execute(CONSULTA_CASOS)
+        with open(tmp, "w", newline="", encoding="utf-8-sig") as fh:
+            w = csv.writer(fh, delimiter=";")
+            w.writerow(["SUBJECT", "CASE_ID"])
+            while True:
+                lote = cur.fetchmany(por_lote)
+                if not lote:
+                    break
+                for subject, caso in lote:
+                    w.writerow(["" if subject is None else str(subject).replace("\r", " ").replace("\n", " "),
+                                "" if caso is None else str(caso)])
+                filas += len(lote)
+                log.info("Consulta Oracle: %d filas", filas)
+        os.replace(tmp, destino)
+        return filas
+    finally:
+        if tmp.exists():
+            tmp.unlink()
+        con.close()

@@ -51,6 +51,8 @@ def _parser() -> argparse.ArgumentParser:
                     help="Copiar solo los archivos de estos CASE_ID (resultado de la consulta, CSV o XLSX); "
                          "requiere haber ejecutado 'sds-problematicas'")
     sub.add_parser("sds-problematicas", help="Lista SDS postergadas/cortadas/fallidas y genera la consulta SQL")
+    qc = sub.add_parser("consultar-casos", help="Ejecuta la consulta de CASE_ID en Oracle y genera el CSV de casos")
+    qc.add_argument("--salida", type=Path, help="Archivo CSV de salida (por defecto trabajo\\recuperacion\\casos.csv)")
     bc = sub.add_parser("buscar-casos", help="Busca en la copia los archivos de cada CASE_ID y los valida")
     bc.add_argument("--casos", type=Path, required=True, help="Resultado de la consulta (CSV o XLSX con SUBJECT y CASE_ID)")
     bc.add_argument("--carpeta", type=Path, help="Carpeta donde buscar (por defecto la copia en E:)")
@@ -111,6 +113,24 @@ def _recuperacion(cfg, args) -> int:
         print(f"Detalle: {carpeta_trabajo / 'copia_manifiesto.csv'}")
         return 0 if not (r.errores or r.sin_espacio) else 1
 
+    if args.comando == "consultar-casos":
+        salida = args.salida or carpeta_trabajo / "casos.csv"
+        print(f"Conectando a {cfg.oracle_dsn} como {cfg.oracle_usuario} "
+              f"(contraseña de {cfg.oracle_archivo_password})...")
+        try:
+            filas = RC.consultar_casos(cfg, salida)
+        except ImportError:
+            print("Falta el paquete de Oracle: python -m pip install -r requirements.txt")
+            return 1
+        except (FileNotFoundError, ValueError) as exc:
+            print(exc)
+            return 1
+        except Exception as exc:  # errores de conexión/consulta de Oracle (DPY-xxxx / ORA-xxxxx)
+            print(f"Error de Oracle: {str(exc).splitlines()[0][:300]}")
+            return 1
+        print(f"Filas obtenidas: {filas}\nArchivo de casos: {salida}")
+        return 0
+
     if args.comando == "sds-problematicas":
         problemas = RC.sds_problematicas(cfg)
         ruta_csv, ruta_sql = RC.escribir_sds_y_sql(problemas, carpeta_trabajo)
@@ -158,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg.trabajo.mkdir(parents=True, exist_ok=True)
     configurar_logging(cfg, datetime.now().strftime("%Y%m%d_%H%M%S"))
 
-    if args.comando in ("copiar-carpeta", "sds-problematicas", "buscar-casos"):
+    if args.comando in ("copiar-carpeta", "sds-problematicas", "buscar-casos", "consultar-casos"):
         return _recuperacion(cfg, args)
 
     if args.comando == "estado":

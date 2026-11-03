@@ -16,3 +16,7 @@ venv/
 # Logs y carpetas de trabajo creadas por error en ejecuciones locales
 *.log
 E:*
+
+# Credenciales
+Pswd.txt
+*.pswd

@@ -70,6 +70,12 @@ class Config:
     carpeta_casos: Path = Path(r"C:\Users\CTI24644\AMX Argentina S.A")  # carpeta a copiar (OneDrive)
     unidad_copia_casos: Path = Path("E:\\")  # la copia queda en <unidad>\<mismo nombre de carpeta>
     reserva_c_gb: float = 2.0  # espacio libre mínimo a conservar en C: al traer archivos de la nube
+    # Conexión Oracle para obtener CASE_ID. La contraseña se lee de la primera línea de este archivo
+    # (nunca se escribe en la configuración, los logs ni los reportes).
+    oracle_usuario: str = "CTI24644"
+    oracle_dsn: str = "exadata-dw.claro.amx:1521/RAC8.WORLD"
+    oracle_archivo_password: Path = Path(r"E:\Migracion Digicorp\Pswd.txt")
+    oracle_expire_time: int = 2  # keepalive (minutos) para que no corten la conexión inactiva
 
     # --- Conversión ----------------------------------------------------------
     convertir_office: bool = True
