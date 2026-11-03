@@ -52,6 +52,12 @@ _OLE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 # 1. Copia de la carpeta a E:
 # ---------------------------------------------------------------------------
 
+def _sin_prefijo(ruta) -> str:
+    """Quita el prefijo de rutas largas de Windows (\\\\?\\) para mostrar o pasar a otros programas."""
+    s = str(ruta)
+    return s[4:] if s.startswith("\\\\?\\") else s
+
+
 def solo_en_la_nube(ruta: Path) -> bool:
     atributos = getattr(os.stat(largo(ruta)), "st_file_attributes", 0)
     return bool(atributos & (_FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS | _FILE_ATTRIBUTE_RECALL_ON_OPEN
@@ -62,7 +68,7 @@ def devolver_a_la_nube(ruta: Path) -> bool:
     """Marca el archivo como "liberar espacio" (solo en la nube). No borra nada de OneDrive."""
     if os.name != "nt":
         return False
-    r = subprocess.run(["attrib", "+U", "-P", str(ruta)], capture_output=True, text=True)
+    r = subprocess.run(["attrib", "+U", "-P", _sin_prefijo(ruta)], capture_output=True, text=True)
     return r.returncode == 0
 
 
@@ -122,7 +128,7 @@ def copiar_carpeta(origen: Path, destino: Path, manifiesto: Path, reserva_c: int
                 res.ya_copiados += 1
                 continue
             nube = solo_en_la_nube(p)
-            if nube and shutil.disk_usage(Path(p).anchor or str(origen)).free < tam + reserva_c:
+            if nube and shutil.disk_usage(origen.anchor or str(origen)).free < tam + reserva_c:
                 res.sin_espacio += 1
                 w.writerow([datetime.now().isoformat(timespec="seconds"), str(rel), tam, "", "SIN_ESPACIO_EN_C",
                             "No hay espacio en C: para traer el archivo de la nube"])
@@ -373,7 +379,7 @@ def escribir_reporte(problemas: list[SdsProblema], b: Busqueda, ruta: Path) -> d
             sds_de_caso[c].add(s)
     for caso, lista in sorted(b.archivos_caso.items()):
         for p, r, d in lista:
-            wa.append([caso, ", ".join(sorted(sds_de_caso[caso])), str(p), r, d])
+            wa.append([caso, ", ".join(sorted(sds_de_caso[caso])), _sin_prefijo(p), r, d])
     ruta.parent.mkdir(parents=True, exist_ok=True)
     wb.save(ruta)
     return dict(totales)
