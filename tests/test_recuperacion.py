@@ -120,3 +120,10 @@ def test_muestra_coincidencias(tmp_path):
     casos = [("SDS 29067459sec", f"0012345{i}") for i in range(5)]
     res = RC.muestra_coincidencias(origen, probs, casos, 2)
     assert len(res) == 2 and res[0][2] == {"29067459SEC"} and res[0][3] == [(CUIT_A, "29067459SEC")]
+
+
+def test_case_id_sin_primer_digito(tmp_path):
+    casos = tmp_path / "casos.csv"
+    casos.write_text("SUBJECT;CASE_ID\nSDS 29067459SEC;500123456\nx;7\n", encoding="utf-8")
+    assert RC.leer_casos(casos, quitar_inicio=1) == [("SDS 29067459SEC", "00123456")]
+    assert RC.leer_casos(casos)[0][1] == "500123456"

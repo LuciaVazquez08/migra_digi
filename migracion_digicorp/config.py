@@ -76,6 +76,9 @@ class Config:
     oracle_dsn: str = "exadata-dw.claro.amx:1521/RAC8.WORLD"
     oracle_archivo_password: Path = Path(r"E:\Migracion Digicorp\Pswd.txt")
     oracle_expire_time: int = 2  # keepalive (minutos) para que no corten la conexión inactiva
+    # El CASE_ID de la base tiene un dígito de más al comienzo respecto del que figura en los nombres de
+    # archivo: se quitan estos caracteres iniciales antes de buscar.
+    case_id_quitar_inicio: int = 1
 
     # --- Conversión ----------------------------------------------------------
     convertir_office: bool = True

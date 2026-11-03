@@ -253,8 +253,11 @@ def escribir_sds_y_sql(problemas: list[SdsProblema], carpeta: Path, por_consulta
 # 3. Búsqueda por CASE_ID y validación
 # ---------------------------------------------------------------------------
 
-def leer_casos(ruta: Path) -> list[tuple[str, str]]:
-    """Lee el resultado de la consulta (columnas SUBJECT y CASE_ID) desde .csv o .xlsx."""
+def leer_casos(ruta: Path, quitar_inicio: int = 0) -> list[tuple[str, str]]:
+    """Lee el resultado de la consulta (columnas SUBJECT y CASE_ID) desde .csv o .xlsx.
+
+    ``quitar_inicio``: caracteres que se quitan al principio de cada CASE_ID para que coincida con cómo
+    aparece en los nombres de archivo (en la base tiene un dígito de más al comienzo)."""
     filas: list[list] = []
     if ruta.suffix.lower() in (".xlsx", ".xlsm"):
         wb = load_workbook(ruta, read_only=True, data_only=True)
@@ -283,6 +286,10 @@ def leer_casos(ruta: Path) -> list[tuple[str, str]]:
         caso = str(f[i_c]).strip()
         if caso.endswith(".0") and caso[:-2].isdigit():  # Excel numérico
             caso = caso[:-2]
+        if quitar_inicio:
+            if len(caso) <= quitar_inicio:
+                continue
+            caso = caso[quitar_inicio:]
         res.append((str(f[i_s] or ""), caso))
     return res
 

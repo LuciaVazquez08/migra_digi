@@ -95,9 +95,12 @@ def _recuperacion(cfg, args) -> int:
             problemas = _leer_problemas(carpeta_trabajo)
             if problemas is None:
                 return 1
+            if cfg.case_id_quitar_inicio:
+                print(f"Se quita(n) {cfg.case_id_quitar_inicio} carácter(es) al inicio de cada CASE_ID de la base.")
             print(f"Buscando los primeros {args.muestra} archivos que se copiarían en {origen} "
                   "(solo nombres, no descarga nada)...")
-            encontrados = RC.muestra_coincidencias(origen, problemas, RC.leer_casos(args.casos), args.muestra)
+            encontrados = RC.muestra_coincidencias(origen, problemas,
+                                                    RC.leer_casos(args.casos, cfg.case_id_quitar_inicio), args.muestra)
             for ruta, casos_f, sds_f, cli in encontrados:
                 print(f"\n  Archivo:  {RC._sin_prefijo(ruta)}")
                 print(f"  CASE_ID:  {', '.join(sorted(casos_f))}")
@@ -112,7 +115,7 @@ def _recuperacion(cfg, args) -> int:
             problemas = _leer_problemas(carpeta_trabajo)
             if problemas is None:
                 return 1
-            filtro, n_ids = RC.filtro_por_casos(problemas, RC.leer_casos(args.casos))
+            filtro, n_ids = RC.filtro_por_casos(problemas, RC.leer_casos(args.casos, cfg.case_id_quitar_inicio))
             print(f"Solo archivos de {n_ids} CASE_ID de SDS problemáticas.")
         print(f"Midiendo {origen} (no descarga nada)...")
         n, total, nube = RC.medir_carpeta(origen, filtro)
@@ -169,7 +172,7 @@ def _recuperacion(cfg, args) -> int:
     if problemas is None:
         return 1
     carpeta = args.carpeta or RC.destino_espejo(cfg.carpeta_casos, cfg.unidad_copia_casos)
-    casos = RC.leer_casos(args.casos)
+    casos = RC.leer_casos(args.casos, cfg.case_id_quitar_inicio)
     print(f"Casos leídos: {len(casos)} | Buscando en {carpeta} ...")
     b = RC.buscar_casos(problemas, casos, carpeta)
     reporte = carpeta_trabajo / f"recuperacion_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
