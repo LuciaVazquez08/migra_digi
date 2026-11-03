@@ -177,6 +177,8 @@ documentos en la carpeta de casos (OneDrive) por su CASE_ID. **No migra nada**: 
    python -m migracion_digicorp --config config.real.toml copiar-carpeta --solo-medir
    python -m migracion_digicorp --config config.real.toml copiar-carpeta
    ```
+   Con `--casos casos.csv` (después de los pasos 2 y 3) copia **solo** los archivos cuyo nombre contiene
+   los CASE_ID de las SDS problemáticas: mucho más rápido que bajar toda la carpeta de OneDrive.
    Reanudable (Ctrl+C o `trabajo\DETENER`). Los archivos "solo en la nube" se traen a C:, se copian
    y se devuelven a "solo en la nube"; si C: no tiene espacio se saltean y quedan en el manifiesto
    `trabajo\recuperacion\copia_manifiesto.csv`. El origen nunca se borra ni se modifica.

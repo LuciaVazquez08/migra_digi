@@ -65,3 +65,15 @@ def test_sds_problematicas(entorno):
     motivos = {(p.sds, p.archivo, p.motivo) for p in probs}
     assert ("29067459SEC", "SDS.url", "POSTERGADO") in motivos
     assert ("29067459SEC", "SPN.url", "URL_CORTADA_O_INVALIDA") in motivos
+
+
+def test_copiar_solo_casos(tmp_path):
+    origen = tmp_path / "AMX Argentina S.A"
+    escribir(origen / "x" / "Caso 00123456.pdf", pdf_bytes())
+    escribir(origen / "x" / "Caso 99999999.pdf", pdf_bytes())
+    probs = [RC.SdsProblema(CUIT_A, "29067459SEC", "SDS.url", "POSTERGADO")]
+    filtro, n = RC.filtro_por_casos(probs, [("SDS 29067459sec", "00123456"), ("otra", "99999999")])
+    assert n == 1
+    destino = RC.destino_espejo(origen, tmp_path / "E")
+    r = RC.copiar_carpeta(origen, destino, tmp_path / "m.csv", 0, filtro=filtro)
+    assert r.copiados == 1 and [p.name for p in destino.rglob("*.pdf")] == ["Caso 00123456.pdf"]

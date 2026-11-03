@@ -47,11 +47,25 @@ def _parser() -> argparse.ArgumentParser:
     cc.add_argument("--origen", type=Path, help="Carpeta a copiar (por defecto carpeta_casos)")
     cc.add_argument("--unidad", type=Path, help="Unidad/carpeta donde crear la copia (por defecto E:\\)")
     cc.add_argument("--solo-medir", action="store_true", help="Solo mostrar cantidad y tamaño, sin copiar")
+    cc.add_argument("--casos", type=Path,
+                    help="Copiar solo los archivos de estos CASE_ID (resultado de la consulta, CSV o XLSX); "
+                         "requiere haber ejecutado 'sds-problematicas'")
     sub.add_parser("sds-problematicas", help="Lista SDS postergadas/cortadas/fallidas y genera la consulta SQL")
     bc = sub.add_parser("buscar-casos", help="Busca en la copia los archivos de cada CASE_ID y los valida")
     bc.add_argument("--casos", type=Path, required=True, help="Resultado de la consulta (CSV o XLSX con SUBJECT y CASE_ID)")
     bc.add_argument("--carpeta", type=Path, help="Carpeta donde buscar (por defecto la copia en E:)")
     return p
+
+
+def _leer_problemas(carpeta_trabajo: Path):
+    from . import recuperacion as RC
+    ruta_csv = carpeta_trabajo / "sds_problematicas.csv"
+    if not ruta_csv.exists():
+        print("Primero ejecutar 'sds-problematicas'.")
+        return None
+    with open(ruta_csv, encoding="utf-8-sig") as fh:
+        return [RC.SdsProblema(f["CUIT"], f["SDS"], f["ARCHIVO"], f["MOTIVO"], f["DETALLE"])
+                for f in csv.DictReader(fh, delimiter=";")]
 
 
 def _recuperacion(cfg, args) -> int:
@@ -65,11 +79,20 @@ def _recuperacion(cfg, args) -> int:
         if not origen.is_dir():
             print(f"No existe la carpeta de origen: {origen}")
             return 1
+        filtro = None
+        if args.casos:
+            problemas = _leer_problemas(carpeta_trabajo)
+            if problemas is None:
+                return 1
+            filtro, n_ids = RC.filtro_por_casos(problemas, RC.leer_casos(args.casos))
+            print(f"Solo archivos de {n_ids} CASE_ID de SDS problemáticas.")
         print(f"Midiendo {origen} (no descarga nada)...")
-        n, total, nube = RC.medir_carpeta(origen)
+        n, total, nube = RC.medir_carpeta(origen, filtro)
         libre_destino = shutil.disk_usage(destino.anchor or str(destino.parent)).free
+        libre_origen = shutil.disk_usage(origen.anchor or str(origen)).free
         print(f"  Archivos: {n} | Total: {total / 1e9:.2f} GB | Solo en la nube: {nube / 1e9:.2f} GB")
-        print(f"  Copia en: {destino} | Libre en destino: {libre_destino / 1e9:.2f} GB")
+        print(f"  Copia en: {destino} | Libre en destino: {libre_destino / 1e9:.2f} GB | "
+              f"Libre en {origen.anchor or 'origen'}: {libre_origen / 1e9:.2f} GB")
         if args.solo_medir:
             return 0
         if total > libre_destino:
@@ -77,7 +100,7 @@ def _recuperacion(cfg, args) -> int:
             return 1
         with Parada(cfg) as parar:
             r = RC.copiar_carpeta(origen, destino, carpeta_trabajo / "copia_manifiesto.csv",
-                                  int(cfg.reserva_c_gb * 1e9), parar)
+                                  int(cfg.reserva_c_gb * 1e9), parar, filtro)
         print(f"\nCopiados: {r.copiados} ({r.bytes_copiados / 1e9:.2f} GB) | Ya estaban: {r.ya_copiados} | "
               f"Sin espacio en C: {r.sin_espacio} | Errores: {r.errores}{' | DETENIDO' if r.detenido else ''}")
         print(f"Detalle: {carpeta_trabajo / 'copia_manifiesto.csv'}")
@@ -95,13 +118,9 @@ def _recuperacion(cfg, args) -> int:
         return 0
 
     # buscar-casos
-    ruta_csv = carpeta_trabajo / "sds_problematicas.csv"
-    if not ruta_csv.exists():
-        print("Primero ejecutar 'sds-problematicas'.")
+    problemas = _leer_problemas(carpeta_trabajo)
+    if problemas is None:
         return 1
-    with open(ruta_csv, encoding="utf-8-sig") as fh:
-        problemas = [RC.SdsProblema(f["CUIT"], f["SDS"], f["ARCHIVO"], f["MOTIVO"], f["DETALLE"])
-                     for f in csv.DictReader(fh, delimiter=";")]
     carpeta = args.carpeta or RC.destino_espejo(cfg.carpeta_casos, cfg.unidad_copia_casos)
     casos = RC.leer_casos(args.casos)
     print(f"Casos leídos: {len(casos)} | Buscando en {carpeta} ...")

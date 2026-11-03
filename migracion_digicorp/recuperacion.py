@@ -90,10 +90,12 @@ def _recorrer(origen: Path):
             yield p, p.relative_to(Path(largo(origen)))
 
 
-def medir_carpeta(origen: Path) -> tuple[int, int, int]:
+def medir_carpeta(origen: Path, filtro=None) -> tuple[int, int, int]:
     """(archivos, bytes, bytes solo en la nube) sin descargar nada."""
     n = total = nube = 0
     for p, _ in _recorrer(origen):
+        if filtro is not None and not filtro(p.name):
+            continue
         st = os.stat(p)
         n += 1
         total += st.st_size
@@ -107,8 +109,8 @@ def destino_espejo(origen: Path, unidad: Path) -> Path:
     return unidad / origen.name
 
 
-def copiar_carpeta(origen: Path, destino: Path, manifiesto: Path, reserva_c: int, detener=lambda: False
-                   ) -> ResultadoCopia:
+def copiar_carpeta(origen: Path, destino: Path, manifiesto: Path, reserva_c: int, detener=lambda: False,
+                   filtro=None) -> ResultadoCopia:
     """Copia ``origen`` a ``destino`` conservando la estructura. Nunca modifica ni borra el origen
     (solo restaura "solo en la nube" en los archivos que ya lo estaban). Reanudable."""
     res = ResultadoCopia()
@@ -122,6 +124,8 @@ def copiar_carpeta(origen: Path, destino: Path, manifiesto: Path, reserva_c: int
             if detener():
                 res.detenido = True
                 break
+            if filtro is not None and not filtro(p.name):
+                continue
             dst = destino / rel
             tam = os.stat(p).st_size
             if dst.exists() and dst.stat().st_size == tam:
@@ -317,6 +321,16 @@ def validar_archivo(ruta: Path) -> tuple[str, str]:
 class Busqueda:
     sds_casos: dict[str, set[str]] = field(default_factory=dict)          # SDS -> CASE_ID
     archivos_caso: dict[str, list[tuple[Path, str, str]]] = field(default_factory=dict)  # caso -> [(ruta, res, det)]
+
+
+def filtro_por_casos(problemas: list[SdsProblema], casos: list[tuple[str, str]]):
+    """Función nombre_de_archivo -> bool que acepta solo archivos de los CASE_ID de las SDS problemáticas."""
+    sds_objetivo = {p.sds.upper() for p in problemas}
+    ids = {c for subject, c in casos for s in sds_objetivo if s in subject.upper()}
+    if not ids:
+        return lambda nombre: False, 0
+    patron = _patron_casos(ids)
+    return (lambda nombre: patron.search(nombre.casefold()) is not None), len(ids)
 
 
 def buscar_casos(problemas: list[SdsProblema], casos: list[tuple[str, str]], carpeta: Path) -> Busqueda:
