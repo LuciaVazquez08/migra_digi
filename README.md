@@ -166,3 +166,29 @@ Si la ejecución se detiene con `ERROR_DE_ENTORNO` por un certificado HTTPS "no 
    Es más lento que la descarga directa, pero no cambia ninguna validación.
 
 Nunca desactivar la verificación de certificados.
+
+## Recuperar documentos de SDS problemáticas por CASE_ID
+
+Para las SDS cuyos enlaces están postergados, cortados o no se pudieron descargar, se buscan los
+documentos en la carpeta de casos (OneDrive) por su CASE_ID. **No migra nada**: copia, identifica y valida.
+
+1. **Copiar la carpeta a E:** (queda en `E:\AMX Argentina S.A`, con la misma estructura):
+   ```powershell
+   python -m migracion_digicorp --config config.real.toml copiar-carpeta --solo-medir
+   python -m migracion_digicorp --config config.real.toml copiar-carpeta
+   ```
+   Reanudable (Ctrl+C o `trabajo\DETENER`). Los archivos "solo en la nube" se traen a C:, se copian
+   y se devuelven a "solo en la nube"; si C: no tiene espacio se saltean y quedan en el manifiesto
+   `trabajo\recuperacion\copia_manifiesto.csv`. El origen nunca se borra ni se modifica.
+2. **Listar las SDS con problemas y generar la consulta:**
+   ```powershell
+   python -m migracion_digicorp --config config.real.toml sds-problematicas
+   ```
+   Genera `trabajo\recuperacion\sds_problematicas.csv` y `consulta_case_id.sql`.
+3. **Ejecutar la consulta** en la base y exportar el resultado (columnas `SUBJECT`, `CASE_ID`) a CSV o XLSX.
+4. **Buscar y validar:**
+   ```powershell
+   python -m migracion_digicorp --config config.real.toml buscar-casos --casos "E:\Migracion Digicorp\casos.csv"
+   ```
+   Reporte `trabajo\recuperacion\recuperacion_<fecha>.xlsx`: por SDS, sus CASE_ID, archivos
+   encontrados, válidos y corruptos.

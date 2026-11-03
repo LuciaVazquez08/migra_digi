@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -40,7 +42,77 @@ def _parser() -> argparse.ArgumentParser:
     pu = sub.add_parser("probar-url", help="Descarga y valida archivos .url individuales (diagnóstico)")
     pu.add_argument("archivos", nargs="+", type=Path)
     sub.add_parser("estado", help="Resumen del estado persistente")
+
+    cc = sub.add_parser("copiar-carpeta", help="Copia la carpeta de casos (OneDrive) a E: con el mismo nombre")
+    cc.add_argument("--origen", type=Path, help="Carpeta a copiar (por defecto carpeta_casos)")
+    cc.add_argument("--unidad", type=Path, help="Unidad/carpeta donde crear la copia (por defecto E:\\)")
+    cc.add_argument("--solo-medir", action="store_true", help="Solo mostrar cantidad y tamaño, sin copiar")
+    sub.add_parser("sds-problematicas", help="Lista SDS postergadas/cortadas/fallidas y genera la consulta SQL")
+    bc = sub.add_parser("buscar-casos", help="Busca en la copia los archivos de cada CASE_ID y los valida")
+    bc.add_argument("--casos", type=Path, required=True, help="Resultado de la consulta (CSV o XLSX con SUBJECT y CASE_ID)")
+    bc.add_argument("--carpeta", type=Path, help="Carpeta donde buscar (por defecto la copia en E:)")
     return p
+
+
+def _recuperacion(cfg, args) -> int:
+    from . import recuperacion as RC
+    from .orquestador import Parada
+
+    carpeta_trabajo = cfg.trabajo / "recuperacion"
+    if args.comando == "copiar-carpeta":
+        origen = args.origen or cfg.carpeta_casos
+        destino = RC.destino_espejo(origen, args.unidad or cfg.unidad_copia_casos)
+        if not origen.is_dir():
+            print(f"No existe la carpeta de origen: {origen}")
+            return 1
+        print(f"Midiendo {origen} (no descarga nada)...")
+        n, total, nube = RC.medir_carpeta(origen)
+        libre_destino = shutil.disk_usage(destino.anchor or str(destino.parent)).free
+        print(f"  Archivos: {n} | Total: {total / 1e9:.2f} GB | Solo en la nube: {nube / 1e9:.2f} GB")
+        print(f"  Copia en: {destino} | Libre en destino: {libre_destino / 1e9:.2f} GB")
+        if args.solo_medir:
+            return 0
+        if total > libre_destino:
+            print("No hay espacio suficiente en el destino. No se copió nada.")
+            return 1
+        with Parada(cfg) as parar:
+            r = RC.copiar_carpeta(origen, destino, carpeta_trabajo / "copia_manifiesto.csv",
+                                  int(cfg.reserva_c_gb * 1e9), parar)
+        print(f"\nCopiados: {r.copiados} ({r.bytes_copiados / 1e9:.2f} GB) | Ya estaban: {r.ya_copiados} | "
+              f"Sin espacio en C: {r.sin_espacio} | Errores: {r.errores}{' | DETENIDO' if r.detenido else ''}")
+        print(f"Detalle: {carpeta_trabajo / 'copia_manifiesto.csv'}")
+        return 0 if not (r.errores or r.sin_espacio) else 1
+
+    if args.comando == "sds-problematicas":
+        problemas = RC.sds_problematicas(cfg)
+        ruta_csv, ruta_sql = RC.escribir_sds_y_sql(problemas, carpeta_trabajo)
+        from collections import Counter
+        print(f"SDS con problemas: {len({(p.cuit, p.sds) for p in problemas})} "
+              f"({len(problemas)} archivos) en {len({p.cuit for p in problemas})} clientes")
+        for motivo, cant in Counter(p.motivo for p in problemas).most_common():
+            print(f"  {cant:7d} archivos  {motivo}")
+        print(f"Listado: {ruta_csv}\nConsulta SQL: {ruta_sql}")
+        return 0
+
+    # buscar-casos
+    ruta_csv = carpeta_trabajo / "sds_problematicas.csv"
+    if not ruta_csv.exists():
+        print("Primero ejecutar 'sds-problematicas'.")
+        return 1
+    with open(ruta_csv, encoding="utf-8-sig") as fh:
+        problemas = [RC.SdsProblema(f["CUIT"], f["SDS"], f["ARCHIVO"], f["MOTIVO"], f["DETALLE"])
+                     for f in csv.DictReader(fh, delimiter=";")]
+    carpeta = args.carpeta or RC.destino_espejo(cfg.carpeta_casos, cfg.unidad_copia_casos)
+    casos = RC.leer_casos(args.casos)
+    print(f"Casos leídos: {len(casos)} | Buscando en {carpeta} ...")
+    b = RC.buscar_casos(problemas, casos, carpeta)
+    reporte = carpeta_trabajo / f"recuperacion_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
+    totales = RC.escribir_reporte(problemas, b, reporte)
+    print(f"SDS con problemas: {sum(totales.values())}")
+    for k in ("CON_ARCHIVOS_VALIDOS", "SOLO_CORRUPTOS", "SOLO_NO_VERIFICABLES", "SIN_ARCHIVOS", "SIN_CASE_ID"):
+        print(f"  {totales.get(k, 0):7d}  {k}")
+    print(f"Reporte: {reporte}")
+    return 0
 
 
 def _usar_certificados_del_sistema() -> None:
@@ -60,6 +132,9 @@ def main(argv: list[str] | None = None) -> int:
         _usar_certificados_del_sistema()
     cfg.trabajo.mkdir(parents=True, exist_ok=True)
     configurar_logging(cfg, datetime.now().strftime("%Y%m%d_%H%M%S"))
+
+    if args.comando in ("copiar-carpeta", "sds-problematicas", "buscar-casos"):
+        return _recuperacion(cfg, args)
 
     if args.comando == "estado":
         est = Estado(cfg.archivo_estado)

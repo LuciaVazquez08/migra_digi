@@ -66,6 +66,11 @@ class Config:
     # migran en esta máquina y se procesan en una ejecución posterior (p. ej. en otro equipo).
     dominios_postergados: tuple[str, ...] = ()
 
+    # --- Recuperación por CASE_ID ------------------------------------------
+    carpeta_casos: Path = Path(r"C:\Users\CTI24644\AMX Argentina S.A")  # carpeta a copiar (OneDrive)
+    unidad_copia_casos: Path = Path("E:\\")  # la copia queda en <unidad>\<mismo nombre de carpeta>
+    reserva_c_gb: float = 2.0  # espacio libre mínimo a conservar en C: al traer archivos de la nube
+
     # --- Conversión ----------------------------------------------------------
     convertir_office: bool = True
     soffice: str = ""  # ruta a soffice(.exe); vacío = autodetectar
