@@ -93,7 +93,9 @@ def _recorrer(origen: Path):
 def medir_carpeta(origen: Path, filtro=None) -> tuple[int, int, int]:
     """(archivos, bytes, bytes solo en la nube) sin descargar nada."""
     n = total = nube = 0
-    for p, _ in _recorrer(origen):
+    for i, (p, _) in enumerate(_recorrer(origen), 1):
+        if i % 20000 == 0:
+            log.info("Medición: %d archivos revisados", i)
         if filtro is not None and not filtro(p.name):
             continue
         st = os.stat(p)
@@ -285,11 +287,43 @@ def leer_casos(ruta: Path) -> list[tuple[str, str]]:
     return res
 
 
-def _patron_casos(casos: set[str]) -> re.Pattern:
-    def pieza(c: str) -> str:
-        borde = r"0-9" if c.isdigit() else r"0-9a-z"
-        return rf"(?<![{borde}]){re.escape(c.casefold())}(?![{borde}])"
-    return re.compile("|".join(pieza(c) for c in sorted(casos, key=len, reverse=True)))
+_RE_SDS_ASUNTO = re.compile(r"(?=(\d{8}[A-Z]{3}))")
+_RE_DIGITOS = re.compile(r"\d+")
+_RE_ALFANUM = re.compile(r"[0-9a-z]+")
+
+
+def _sds_en_asunto(subject: str) -> set[str]:
+    """Todas las secuencias con formato de SDS (8 dígitos + 3 letras) del asunto, en mayúsculas."""
+    return set(_RE_SDS_ASUNTO.findall(subject.upper()))
+
+
+def relacionar_sds_casos(sds_objetivo: set[str], casos: list[tuple[str, str]]) -> dict[str, set[str]]:
+    """SDS -> CASE_ID cuyo asunto la contiene. Lineal en la cantidad de casos."""
+    res: dict[str, set[str]] = {}
+    for subject, caso in casos:
+        for s in _sds_en_asunto(subject) & sds_objetivo:
+            res.setdefault(s, set()).add(caso)
+    return res
+
+
+class _IndiceCasos:
+    """Encuentra qué CASE_ID aparecen en un nombre de archivo, como número/código completo.
+
+    Un CASE_ID numérico coincide con una secuencia de dígitos completa (``00123456`` no coincide con
+    ``001234567``); uno alfanumérico, con una secuencia alfanumérica completa. Sin distinguir mayúsculas.
+    """
+
+    def __init__(self, casos: set[str]):
+        self.original = {c.casefold(): c for c in casos}
+        self.numericos = {k for k in self.original if k.isdigit()}
+        self.alfanum = set(self.original) - self.numericos
+
+    def buscar(self, nombre: str) -> set[str]:
+        n = nombre.casefold()
+        encontrados = {t for t in _RE_DIGITOS.findall(n) if t in self.numericos}
+        if self.alfanum:
+            encontrados |= {t for t in _RE_ALFANUM.findall(n) if t in self.alfanum}
+        return {self.original[t] for t in encontrados}
 
 
 def validar_archivo(ruta: Path) -> tuple[str, str]:
@@ -332,34 +366,31 @@ class Busqueda:
 def filtro_por_casos(problemas: list[SdsProblema], casos: list[tuple[str, str]]):
     """Función nombre_de_archivo -> bool que acepta solo archivos de los CASE_ID de las SDS problemáticas."""
     sds_objetivo = {p.sds.upper() for p in problemas}
-    ids = {c for subject, c in casos for s in sds_objetivo if s in subject.upper()}
+    ids = {c for cs in relacionar_sds_casos(sds_objetivo, casos).values() for c in cs}
     if not ids:
         return lambda nombre: False, 0
-    patron = _patron_casos(ids)
-    return (lambda nombre: patron.search(nombre.casefold()) is not None), len(ids)
+    indice = _IndiceCasos(ids)
+    return (lambda nombre: bool(indice.buscar(nombre))), len(ids)
 
 
 def buscar_casos(problemas: list[SdsProblema], casos: list[tuple[str, str]], carpeta: Path) -> Busqueda:
     sds_objetivo = {p.sds.upper() for p in problemas}
     b = Busqueda()
-    for subject, caso in casos:
-        asunto = subject.upper()
-        for s in sds_objetivo:
-            if s in asunto:
-                b.sds_casos.setdefault(s, set()).add(caso)
+    b.sds_casos = relacionar_sds_casos(sds_objetivo, casos)
     todos = {c for cs in b.sds_casos.values() for c in cs}
     if not todos:
         return b
-    patron = _patron_casos(todos)
-    por_casefold = {c.casefold(): c for c in todos}
-    for p, _ in _recorrer(carpeta):
+    indice = _IndiceCasos(todos)
+    for n, (p, _) in enumerate(_recorrer(carpeta), 1):
+        if n % 20000 == 0:
+            log.info("Búsqueda: %d archivos revisados", n)
         if p.name.endswith(".part"):
             continue
-        encontrados = {m.group(0) for m in patron.finditer(p.name.casefold())}
+        encontrados = indice.buscar(p.name)
         if encontrados:
             resultado, detalle = validar_archivo(p)
-            for e in encontrados:
-                b.archivos_caso.setdefault(por_casefold[e], []).append((p, resultado, detalle))
+            for caso in encontrados:
+                b.archivos_caso.setdefault(caso, []).append((p, resultado, detalle))
     return b
 
 
