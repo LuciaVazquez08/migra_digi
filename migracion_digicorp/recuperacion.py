@@ -238,6 +238,12 @@ def escribir_sds_y_sql(problemas: list[SdsProblema], carpeta: Path, por_consulta
         partes.append(f"-- Lote {i // por_consulta + 1} ({len(lote)} SDS)\n"
                       f"SELECT SUBJECT, CASE_ID\nFROM RACING.CD_CASE_DETAILS_DUMP\nWHERE {condiciones};\n")
     ruta_sql.write_text("\n".join(partes), encoding="utf-8")
+    # Alternativa en una sola consulta (Oracle): trae todos los casos cuyo asunto contiene algo con
+    # formato de SDS; el filtro por las SDS problemáticas se hace después, en buscar-casos.
+    (carpeta / "consulta_case_id_unica.sql").write_text(
+        "-- Oracle: una sola consulta para todas las SDS (el programa filtra después las que interesan)\n"
+        "SELECT SUBJECT, CASE_ID\nFROM RACING.CD_CASE_DETAILS_DUMP\n"
+        "WHERE REGEXP_LIKE(SUBJECT, '[0-9]{8}[A-Za-z]{3}');\n", encoding="utf-8")
     return ruta_csv, ruta_sql
 
 

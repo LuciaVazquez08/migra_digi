@@ -114,7 +114,8 @@ def _recuperacion(cfg, args) -> int:
               f"({len(problemas)} archivos) en {len({p.cuit for p in problemas})} clientes")
         for motivo, cant in Counter(p.motivo for p in problemas).most_common():
             print(f"  {cant:7d} archivos  {motivo}")
-        print(f"Listado: {ruta_csv}\nConsulta SQL: {ruta_sql}")
+        print(f"Listado: {ruta_csv}\nConsulta SQL por lotes: {ruta_sql}\n"
+              f"Consulta SQL única (Oracle, recomendada): {ruta_sql.with_name('consulta_case_id_unica.sql')}")
         return 0
 
     # buscar-casos

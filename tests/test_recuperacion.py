@@ -33,6 +33,7 @@ def test_sql_y_casos(tmp_path):
     _, sql = RC.escribir_sds_y_sql(probs, tmp_path, por_consulta=1)
     texto = sql.read_text()
     assert texto.count("SELECT SUBJECT, CASE_ID") == 2 and "UPPER(SUBJECT) LIKE '%29067459SEC%'" in texto
+    assert "REGEXP_LIKE" in (tmp_path / "consulta_case_id_unica.sql").read_text()
     casos = tmp_path / "casos.csv"
     casos.write_text("SUBJECT;CASE_ID\nAlta SDS 29067459sec cliente;00123456\nOtra 29067460TAE;5004000000AbCdE\n"
                      "Sin relacion;99999999\n", encoding="utf-8")
