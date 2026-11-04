@@ -200,3 +200,16 @@ documentos en la carpeta de casos (OneDrive) por su CASE_ID. **No migra nada**: 
    ```
    Reporte `trabajo\recuperacion\recuperacion_<fecha>.xlsx`: por SDS, sus CASE_ID, archivos
    encontrados, válidos y corruptos.
+
+### Número de caso por SDS (CNA.ACT_S1_DETALLE_CASOS)
+
+```powershell
+python -m migracion_digicorp --config config.real.toml consultar-sds --muestra 5   # prueba con 5 SDS
+python -m migracion_digicorp --config config.real.toml consultar-sds              # todas (reanudable)
+python -m migracion_digicorp --config config.real.toml buscar-en-original
+```
+
+`consultar-sds` ejecuta, por cada SDS pendiente, `SELECT * FROM CNA.ACT_S1_DETALLE_CASOS WHERE ASUNTO LIKE
+'%<SDS>%'` (si no hay filas, repite con las letras en minúscula) y guarda `casos_por_sds.csv` y
+`detalle_casos_por_sds.csv`. `buscar-en-original` cuenta en cuántas SDS el número de caso aparece en los
+nombres de archivo de la carpeta original (sin descargar nada), con el número completo y sin el primer dígito.

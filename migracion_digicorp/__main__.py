@@ -53,6 +53,14 @@ def _parser() -> argparse.ArgumentParser:
                     help="Copiar solo los archivos de estos CASE_ID (resultado de la consulta, CSV o XLSX); "
                          "requiere haber ejecutado 'sds-problematicas'")
     sub.add_parser("sds-problematicas", help="Lista SDS postergadas/cortadas/fallidas y genera la consulta SQL")
+    cs = sub.add_parser("consultar-sds", help="Por cada SDS pendiente: SELECT * FROM CNA.ACT_S1_DETALLE_CASOS "
+                                               "WHERE ASUNTO LIKE '%%SDS%%' (reanudable)")
+    cs.add_argument("--columna-caso", default="", help="Columna con el número de caso (por defecto se detecta)")
+    cs.add_argument("--hilos", type=int, default=2, help="Conexiones simultáneas a Oracle (por defecto 2)")
+    cs.add_argument("--muestra", type=int, default=0, help="Consultar solo las primeras N SDS y mostrar el resultado")
+    bo = sub.add_parser("buscar-en-original", help="Cuenta en cuántas SDS el número de caso aparece en los "
+                                                   "nombres de archivo de la carpeta original (no descarga nada)")
+    bo.add_argument("--carpeta", type=Path, help="Por defecto carpeta_casos (la original en C:)")
     ej = sub.add_parser("ejemplos-sds", help="Muestra N SDS problemáticas con su CASE_ID, para buscarlas a mano")
     ej.add_argument("--casos", type=Path, required=True, help="CSV/XLSX de casos (SUBJECT, CASE_ID)")
     ej.add_argument("--n", type=int, default=3)
@@ -142,6 +150,63 @@ def _recuperacion(cfg, args) -> int:
         print(f"Detalle: {carpeta_trabajo / 'copia_manifiesto.csv'}")
         return 0 if not (r.errores or r.sin_espacio) else 1
 
+    if args.comando == "consultar-sds":
+        problemas = _leer_problemas(carpeta_trabajo)
+        if problemas is None:
+            return 1
+        sds = RC.sds_unicas(problemas)
+        destino = carpeta_trabajo
+        if args.muestra:
+            destino = carpeta_trabajo / "muestra_sds"
+            shutil.rmtree(destino, ignore_errors=True)
+            sds = sds[:args.muestra]
+        print(f"SDS a consultar: {len(sds)} | Conectando a {cfg.oracle_dsn} como {cfg.oracle_usuario}...")
+        try:
+            with Parada(cfg) as parar:
+                r = RC.consultar_por_sds(cfg, sds, destino, args.columna_caso, args.hilos, parar)
+        except ImportError:
+            print("Falta el paquete de Oracle: python -m pip install -r requirements.txt")
+            return 1
+        except (FileNotFoundError, ValueError) as exc:
+            print(exc)
+            return 1
+        except Exception as exc:
+            print(f"Error de Oracle: {str(exc).splitlines()[0][:300]}")
+            return 1
+        casos = RC.leer_casos_por_sds(destino / "casos_por_sds.csv")
+        con = sum(1 for c in casos.values() if c)
+        if args.muestra:
+            for s_, cs_ in casos.items():
+                print(f"  {s_}: {', '.join(cs_) if cs_ else '(sin caso)'}")
+        print(f"\nSDS consultadas en total: {len(casos)} de {len(RC.sds_unicas(problemas))} | "
+              f"con número de caso: {con} | sin caso: {len(casos) - con}"
+              + (f" | pendientes: {r['pendientes']} (volver a ejecutar para continuar)" if r["pendientes"] else ""))
+        print(f"Resultado: {destino / 'casos_por_sds.csv'}\nDetalle (todas las columnas): "
+              f"{destino / 'detalle_casos_por_sds.csv'}")
+        return 0
+
+    if args.comando == "buscar-en-original":
+        ruta = carpeta_trabajo / "casos_por_sds.csv"
+        if not ruta.exists():
+            print("Primero ejecutar 'consultar-sds'.")
+            return 1
+        carpeta = args.carpeta or cfg.carpeta_casos
+        print(f"Buscando números de caso en los nombres de archivo de {carpeta} (no descarga nada)...")
+        tot, filas = RC.buscar_en_original(RC.leer_casos_por_sds(ruta), carpeta, cfg.case_id_quitar_inicio)
+        salida = carpeta_trabajo / f"casos_en_original_{datetime.now():%Y%m%d_%H%M%S}.csv"
+        with open(salida, "w", newline="", encoding="utf-8-sig") as fh:
+            w = csv.writer(fh, delimiter=";")
+            w.writerow(["SDS", "CASOS", "ARCHIVOS_NUMERO_COMPLETO", "ARCHIVOS_SIN_PRIMER_DIGITO"])
+            for s_, cs_, a, b in filas:
+                w.writerow([s_, "|".join(cs_), " | ".join(a), " | ".join(b)])
+        print(f"SDS consultadas:                                {tot['sds_consultadas']}")
+        print(f"SDS con número de caso:                         {tot['sds_con_caso']}")
+        print(f"  ...con archivo en el original (alguna forma): {tot['con_archivo_alguna_forma']}")
+        print(f"      número completo:                          {tot['con_archivo_numero_completo']}")
+        print(f"      sin el primer dígito:                     {tot['con_archivo_sin_primer_digito']}")
+        print(f"Detalle: {salida}")
+        return 0
+
     if args.comando == "ejemplos-sds":
         problemas = _leer_problemas(carpeta_trabajo)
         if problemas is None:
@@ -229,7 +294,8 @@ def main(argv: list[str] | None = None) -> int:
     cfg.trabajo.mkdir(parents=True, exist_ok=True)
     configurar_logging(cfg, datetime.now().strftime("%Y%m%d_%H%M%S"))
 
-    if args.comando in ("copiar-carpeta", "sds-problematicas", "buscar-casos", "consultar-casos", "ejemplos-sds"):
+    if args.comando in ("copiar-carpeta", "sds-problematicas", "buscar-casos", "consultar-casos", "ejemplos-sds",
+                        "consultar-sds", "buscar-en-original"):
         return _recuperacion(cfg, args)
 
     if args.comando == "estado":

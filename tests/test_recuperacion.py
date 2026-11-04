@@ -150,3 +150,50 @@ def test_ejemplos_prioriza_cortados(tmp_path):
     assert [e["sds"] for e in ej] == ["29000002SEC", "29000001SEC"]  # 29000003SEC no tiene caso
     assert ej[0]["casos"][0][1:] == ("587654321", "87654321")
     assert ej[0]["archivos"][0].endswith("29000002SEC" + __import__("os").sep + "DNI.url")
+
+
+class _CursorSds:
+    description = [("NUMERO_CASO",), ("ASUNTO",)]
+    datos = {"%29000001SEC%": [("8597420", "Alta 29000001SEC")], "%29000002sec%": [("1234567", "x 29000002sec")]}
+
+    def execute(self, sql, patron):
+        assert sql == RC.CONSULTA_POR_SDS
+        self.filas = self.datos.get(patron, [])
+
+    def fetchall(self):
+        return self.filas
+
+
+class _ConSds:
+    def cursor(self):
+        return _CursorSds()
+
+    def close(self):
+        pass
+
+
+def test_consultar_por_sds_reanudable_y_busqueda_en_original(entorno, tmp_path):
+    carpeta = tmp_path / "rec"
+    sds = ["29000001SEC", "29000002SEC", "29000003SEC"]
+    r = RC.consultar_por_sds(entorno.cfg, sds[:2], carpeta, conectar=_ConSds)
+    assert r["consultadas_ahora"] == 2 and r["con_caso_ahora"] == 2
+    r = RC.consultar_por_sds(entorno.cfg, sds, carpeta, conectar=_ConSds, hilos=2)
+    assert r["consultadas_ahora"] == 1 and r["ya_consultadas"] == 2  # reanuda sin repetir
+    casos = RC.leer_casos_por_sds(carpeta / "casos_por_sds.csv")
+    assert casos == {"29000001SEC": ["8597420"], "29000002SEC": ["1234567"], "29000003SEC": []}
+
+    original = tmp_path / "AMX Argentina S.A"
+    escribir(original / "a" / "Caso 597420 DNI.pdf", pdf_bytes())     # sin el primer dígito
+    escribir(original / "b" / "1234567-SDS.pdf", pdf_bytes())         # número completo
+    escribir(original / "b" / "85974201.pdf", pdf_bytes())            # otro número: no cuenta
+    tot, filas = RC.buscar_en_original(casos, original, 1)
+    assert tot == {"sds_consultadas": 3, "sds_con_caso": 2, "con_archivo_numero_completo": 1,
+                   "con_archivo_sin_primer_digito": 1, "con_archivo_alguna_forma": 2}
+
+
+def test_elegir_columna_caso():
+    import pytest
+    assert RC.elegir_columna_caso(["ID", "Numero_Caso", "ASUNTO"]) == "NUMERO_CASO"
+    assert RC.elegir_columna_caso(["ID", "NRO_DE_CASO_S1", "ASUNTO"]) == "NRO_DE_CASO_S1"
+    with pytest.raises(ValueError, match="--columna-caso"):
+        RC.elegir_columna_caso(["ID", "ASUNTO", "FECHA"])

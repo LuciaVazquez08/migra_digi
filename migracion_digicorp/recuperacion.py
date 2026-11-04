@@ -567,3 +567,165 @@ def consultar_casos(cfg: Config, destino: Path, conectar=None, por_lote: int = 1
         if tmp.exists():
             tmp.unlink()
         con.close()
+
+
+# ---------------------------------------------------------------------------
+# 2c. Número de caso por SDS en CNA.ACT_S1_DETALLE_CASOS (una consulta por SDS)
+# ---------------------------------------------------------------------------
+
+CONSULTA_POR_SDS = "SELECT * FROM CNA.ACT_S1_DETALLE_CASOS WHERE ASUNTO LIKE :patron"
+_COLUMNAS_CASO_PREFERIDAS = ("NUMERO_CASO", "NRO_CASO", "NUM_CASO", "CASE_NUMBER", "CASENUMBER", "ID_CASO",
+                             "CASO", "CASE_ID")
+
+
+def elegir_columna_caso(columnas: list[str], forzada: str = "") -> str:
+    cols = [c.upper() for c in columnas]
+    if forzada:
+        if forzada.upper() not in cols:
+            raise ValueError(f"La columna '{forzada}' no existe. Columnas: {', '.join(cols)}")
+        return forzada.upper()
+    for c in _COLUMNAS_CASO_PREFERIDAS:
+        if c in cols:
+            return c
+    candidatas = [c for c in cols if ("CASO" in c or "CASE" in c) and c != "ASUNTO"]
+    if len(candidatas) == 1:
+        return candidatas[0]
+    raise ValueError("No se pudo determinar la columna del número de caso; indicarla con --columna-caso. "
+                     f"Columnas: {', '.join(cols)}")
+
+
+def sds_unicas(problemas: list[SdsProblema]) -> list[str]:
+    return sorted({p.sds.upper() for p in problemas})
+
+
+def _conexion_oracle(cfg: Config):
+    import oracledb
+    oracledb.defaults.fetch_lobs = False
+    return oracledb.connect(user=cfg.oracle_usuario, password=leer_password(cfg.oracle_archivo_password),
+                            dsn=cfg.oracle_dsn, expire_time=cfg.oracle_expire_time)
+
+
+def consultar_por_sds(cfg: Config, sds: list[str], carpeta: Path, columna_caso: str = "", hilos: int = 1,
+                      detener=lambda: False, conectar=None, tambien_minusculas: bool = True) -> dict[str, int]:
+    """Ejecuta la consulta por cada SDS y guarda, en forma reanudable:
+
+    * ``casos_por_sds.csv``: SDS;CASOS (separados por |);FILAS
+    * ``detalle_casos_por_sds.csv``: SDS + todas las columnas devueltas (auditoría)
+
+    Si no hay filas con la SDS en mayúsculas, se repite con las letras en minúscula.
+    """
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    from queue import Empty, Queue
+
+    conectar = conectar or (lambda: _conexion_oracle(cfg))
+    carpeta.mkdir(parents=True, exist_ok=True)
+    resumen = carpeta / "casos_por_sds.csv"
+    detalle = carpeta / "detalle_casos_por_sds.csv"
+    hechas: set[str] = set()
+    if resumen.exists():
+        with open(resumen, encoding="utf-8-sig") as fh:
+            hechas = {f["SDS"] for f in csv.DictReader(fh, delimiter=";")}
+    pendientes: Queue = Queue()
+    for s_ in sds:
+        if s_ not in hechas:
+            pendientes.put(s_)
+    lock = threading.Lock()
+    estado = {"columnas": None, "col_caso": None, "hechas": 0, "con_caso": 0}
+    nuevo_resumen = not resumen.exists()
+    fr = open(resumen, "a", newline="", encoding="utf-8-sig")
+    fd = open(detalle, "a", newline="", encoding="utf-8-sig")
+    wr, wd = csv.writer(fr, delimiter=";"), csv.writer(fd, delimiter=";")
+    if nuevo_resumen:
+        wr.writerow(["SDS", "CASOS", "FILAS"])
+    escribir_cabecera_detalle = detalle.stat().st_size == 0
+
+    def trabajar():
+        nonlocal escribir_cabecera_detalle
+        con = conectar()
+        try:
+            cur = con.cursor()
+            while not detener():
+                try:
+                    s_ = pendientes.get_nowait()
+                except Empty:
+                    return
+                filas = []
+                for variante in ((s_, s_.lower()) if tambien_minusculas else (s_,)):
+                    cur.execute(CONSULTA_POR_SDS, patron=f"%{variante}%")
+                    filas = cur.fetchall()
+                    if filas:
+                        break
+                columnas = [d[0].upper() for d in cur.description]
+                with lock:
+                    if estado["columnas"] is None:
+                        estado["columnas"] = columnas
+                        estado["col_caso"] = elegir_columna_caso(columnas, columna_caso)
+                        log.info("Columnas: %s | número de caso: %s", ", ".join(columnas), estado["col_caso"])
+                    if escribir_cabecera_detalle:
+                        wd.writerow(["SDS_BUSCADA"] + columnas)
+                        escribir_cabecera_detalle = False
+                    i = estado["columnas"].index(estado["col_caso"])
+                    casos = sorted({str(f[i]).strip() for f in filas if f[i] not in (None, "")})
+                    for f in filas:
+                        wd.writerow([s_] + ["" if v is None else str(v).replace("\r", " ").replace("\n", " ")
+                                            for v in f])
+                    wr.writerow([s_, "|".join(casos), len(filas)])
+                    estado["hechas"] += 1
+                    estado["con_caso"] += bool(casos)
+                    if estado["hechas"] % 200 == 0:
+                        fr.flush()
+                        fd.flush()
+                        log.info("Consulta por SDS: %d hechas en esta ejecución, %d con caso (pendientes: %d)",
+                                 estado["hechas"], estado["con_caso"], pendientes.qsize())
+        finally:
+            con.close()
+
+    try:
+        with ThreadPoolExecutor(max_workers=max(1, hilos)) as ex:
+            for f in [ex.submit(trabajar) for _ in range(max(1, hilos))]:
+                f.result()
+    finally:
+        fr.close()
+        fd.close()
+    return {"consultadas_ahora": estado["hechas"], "con_caso_ahora": estado["con_caso"],
+            "ya_consultadas": len(hechas), "pendientes": pendientes.qsize()}
+
+
+def leer_casos_por_sds(ruta: Path) -> dict[str, list[str]]:
+    with open(ruta, encoding="utf-8-sig") as fh:
+        return {f["SDS"]: [c for c in f["CASOS"].split("|") if c] for f in csv.DictReader(fh, delimiter=";")}
+
+
+def buscar_en_original(casos_por_sds: dict[str, list[str]], carpeta: Path, quitar_inicio: int = 1):
+    """Para cada SDS con caso, si el número de caso aparece en algún nombre de archivo de ``carpeta``.
+
+    Solo lee nombres (no descarga archivos de la nube). Cuenta por separado la coincidencia con el número
+    completo y con el número sin sus primeros ``quitar_inicio`` caracteres.
+    Devuelve (totales, filas) con filas = [(sds, casos, archivos_completo, archivos_recortado)].
+    """
+    completos = {c for cs in casos_por_sds.values() for c in cs}
+    recortados = {c[quitar_inicio:] for c in completos if len(c) > quitar_inicio} if quitar_inicio else set()
+    idx = _IndiceCasos(completos | recortados)
+    hallados: dict[str, list[str]] = defaultdict(list)
+    for n, (p, _) in enumerate(_recorrer(carpeta), 1):
+        if n % 20000 == 0:
+            log.info("Búsqueda en original: %d archivos revisados", n)
+        for c in idx.buscar(p.name):
+            if len(hallados[c]) < 20:
+                hallados[c].append(_sin_prefijo(p))
+    filas = []
+    tot = {"sds_consultadas": len(casos_por_sds), "sds_con_caso": 0, "con_archivo_numero_completo": 0,
+           "con_archivo_sin_primer_digito": 0, "con_archivo_alguna_forma": 0}
+    for s_, casos in sorted(casos_por_sds.items()):
+        if not casos:
+            continue
+        tot["sds_con_caso"] += 1
+        a_comp = [a for c in casos for a in hallados.get(c, [])]
+        a_rec = [a for c in casos if quitar_inicio and len(c) > quitar_inicio
+                 for a in hallados.get(c[quitar_inicio:], [])]
+        tot["con_archivo_numero_completo"] += bool(a_comp)
+        tot["con_archivo_sin_primer_digito"] += bool(a_rec)
+        tot["con_archivo_alguna_forma"] += bool(a_comp or a_rec)
+        filas.append((s_, casos, a_comp, a_rec))
+    return tot, filas
