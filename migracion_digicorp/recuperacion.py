@@ -420,6 +420,35 @@ def muestra_coincidencias(origen: Path, problemas: list[SdsProblema], casos: lis
     return res
 
 
+def ejemplos(problemas: list[SdsProblema], casos_crudos: list[tuple[str, str]], n: int, quitar_inicio: int,
+             origen_raw: Path, preferir=("URL_CORTADA_O_INVALIDA", "DESCARGA_FALLIDA", "POSTERGADO")):
+    """Hasta ``n`` SDS problemáticas que tienen CASE_ID, priorizando enlaces cortados/fallidos.
+
+    Devuelve [{cuit, sds, motivos, archivos, casos: [(subject, case_id_base, case_id_buscado)]}]."""
+    por_sds: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for subject, caso in casos_crudos:
+        for s_ in _sds_en_asunto(subject):
+            por_sds[s_].append((subject, caso))
+    agrupado: dict[tuple[str, str], list[SdsProblema]] = defaultdict(list)
+    for p in problemas:
+        agrupado[(p.cuit, p.sds.upper())].append(p)
+    orden = sorted(agrupado.items(), key=lambda kv: (min(preferir.index(p.motivo) if p.motivo in preferir
+                                                          else len(preferir) for p in kv[1]), kv[0]))
+    res = []
+    for (cuit, sds), lista in orden:
+        if sds not in por_sds:
+            continue
+        res.append({
+            "cuit": cuit, "sds": sds,
+            "motivos": sorted({p.motivo for p in lista}),
+            "archivos": [str(origen_raw / cuit / "Documentación Móvil" / sds / p.archivo) for p in lista],
+            "casos": [(sub, c, c[quitar_inicio:] if quitar_inicio else c) for sub, c in por_sds[sds][:5]],
+        })
+        if len(res) >= n:
+            break
+    return res
+
+
 def buscar_casos(problemas: list[SdsProblema], casos: list[tuple[str, str]], carpeta: Path) -> Busqueda:
     sds_objetivo = {p.sds.upper() for p in problemas}
     b = Busqueda()

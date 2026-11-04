@@ -53,6 +53,9 @@ def _parser() -> argparse.ArgumentParser:
                     help="Copiar solo los archivos de estos CASE_ID (resultado de la consulta, CSV o XLSX); "
                          "requiere haber ejecutado 'sds-problematicas'")
     sub.add_parser("sds-problematicas", help="Lista SDS postergadas/cortadas/fallidas y genera la consulta SQL")
+    ej = sub.add_parser("ejemplos-sds", help="Muestra N SDS problemáticas con su CASE_ID, para buscarlas a mano")
+    ej.add_argument("--casos", type=Path, required=True, help="CSV/XLSX de casos (SUBJECT, CASE_ID)")
+    ej.add_argument("--n", type=int, default=3)
     qc = sub.add_parser("consultar-casos", help="Ejecuta la consulta de CASE_ID en Oracle y genera el CSV de casos")
     qc.add_argument("--salida", type=Path, help="Archivo CSV de salida (por defecto trabajo\\recuperacion\\casos.csv)")
     bc = sub.add_parser("buscar-casos", help="Busca en la copia los archivos de cada CASE_ID y los valida")
@@ -139,6 +142,28 @@ def _recuperacion(cfg, args) -> int:
         print(f"Detalle: {carpeta_trabajo / 'copia_manifiesto.csv'}")
         return 0 if not (r.errores or r.sin_espacio) else 1
 
+    if args.comando == "ejemplos-sds":
+        problemas = _leer_problemas(carpeta_trabajo)
+        if problemas is None:
+            return 1
+        lista = RC.ejemplos(problemas, RC.leer_casos(args.casos), args.n, cfg.case_id_quitar_inicio, cfg.origen)
+        for i, e in enumerate(lista, 1):
+            print(f"\n===== Ejemplo {i} =====")
+            print(f"CUIT:     {e['cuit']}")
+            print(f"SDS:      {e['sds']}")
+            print(f"Motivo:   {', '.join(e['motivos'])}")
+            print("Archivos con problema:")
+            for a in e["archivos"]:
+                print(f"   {a}")
+            print("Casos en la base:")
+            for sub, base, buscado in e["casos"]:
+                print(f"   CASE_ID en la base: {base}   | buscado en nombres de archivo: {buscado}")
+                print(f"   SUBJECT: {sub[:150]}")
+        if not lista:
+            print("Ninguna SDS problemática tiene CASE_ID en el archivo de casos.")
+        print(f"\nBuscar a mano en: {cfg.carpeta_casos}  (y en la copia {RC.destino_espejo(cfg.carpeta_casos, cfg.unidad_copia_casos)})")
+        return 0
+
     if args.comando == "consultar-casos":
         salida = args.salida or carpeta_trabajo / "casos.csv"
         print(f"Conectando a {cfg.oracle_dsn} como {cfg.oracle_usuario} "
@@ -204,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg.trabajo.mkdir(parents=True, exist_ok=True)
     configurar_logging(cfg, datetime.now().strftime("%Y%m%d_%H%M%S"))
 
-    if args.comando in ("copiar-carpeta", "sds-problematicas", "buscar-casos", "consultar-casos"):
+    if args.comando in ("copiar-carpeta", "sds-problematicas", "buscar-casos", "consultar-casos", "ejemplos-sds"):
         return _recuperacion(cfg, args)
 
     if args.comando == "estado":

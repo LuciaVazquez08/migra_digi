@@ -139,3 +139,14 @@ def test_copia_se_detiene_ante_errores_seguidos(tmp_path, monkeypatch):
     r = RC.copiar_carpeta(origen, RC.destino_espejo(origen, tmp_path / "E"), tmp_path / "m.csv", 0,
                           errores_seguidos_max=3)
     assert r.detenido and r.errores == 3 and "nube" in r.motivo_detencion
+
+
+def test_ejemplos_prioriza_cortados(tmp_path):
+    probs = [RC.SdsProblema(CUIT_A, "29000001SEC", "SDS.url", "POSTERGADO"),
+             RC.SdsProblema(CUIT_A, "29000002SEC", "DNI.url", "URL_CORTADA_O_INVALIDA"),
+             RC.SdsProblema(CUIT_A, "29000003SEC", "DNI.url", "URL_CORTADA_O_INVALIDA")]
+    casos = [("Alta 29000001sec", "512345678"), ("Alta 29000002SEC", "587654321")]
+    ej = RC.ejemplos(probs, casos, 2, 1, tmp_path / "Raw Data")
+    assert [e["sds"] for e in ej] == ["29000002SEC", "29000001SEC"]  # 29000003SEC no tiene caso
+    assert ej[0]["casos"][0][1:] == ("587654321", "87654321")
+    assert ej[0]["archivos"][0].endswith("29000002SEC" + __import__("os").sep + "DNI.url")
