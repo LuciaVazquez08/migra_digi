@@ -247,6 +247,9 @@ def _recuperacion(cfg, args) -> int:
                 r = por_sds.get(s_, {})
                 print(f"   {s_}: enlaces {r.get('enlaces', '?')} | archivos válidos {r.get('validos', 0)} | "
                       f"otros {r.get('otros', 0)} -> {r.get('estado', 'SIN_ARCHIVOS_VALIDOS')}")
+                for f in filas:
+                    if f["sds"] == s_ and f["origen"] and f["resultado"] != "VALIDO":
+                        print(f"      {f['resultado']}: {Path(f['origen']).name} | {f['detalle'][:160]}")
         print(f"\nClientes con todas sus SDS recuperadas: {len(ok_clientes)} de {len(seleccion)}")
         if ok_clientes:
             print("Para migrarlos: --cuits " + " ".join(ok_clientes))
