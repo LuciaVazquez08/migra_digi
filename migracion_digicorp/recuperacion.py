@@ -72,6 +72,43 @@ def devolver_a_la_nube(ruta: Path) -> bool:
     return r.returncode == 0
 
 
+def _pendiente_de_descarga(ruta: Path) -> bool:
+    atributos = getattr(os.stat(largo(ruta)), "st_file_attributes", 0)
+    return bool(atributos & (_FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS | _FILE_ATTRIBUTE_RECALL_ON_OPEN
+                             | _FILE_ATTRIBUTE_OFFLINE))
+
+
+def pedir_a_onedrive(ruta: Path, espera: float = 180.0) -> bool:
+    """Pide a OneDrive que descargue el archivo ("Mantener siempre en este dispositivo") y espera a que
+    esté en el disco. Sirve cuando Windows no deja que otra aplicación lo descargue al abrirlo."""
+    import time
+    if os.name != "nt":
+        return False
+    subprocess.run(["attrib", "+P", "-U", _sin_prefijo(ruta)], capture_output=True, text=True)
+    limite = time.monotonic() + espera
+    while time.monotonic() < limite:
+        if not _pendiente_de_descarga(ruta):
+            return True
+        time.sleep(1)
+    return False
+
+
+def copiar_desde_onedrive(origen: Path, destino: Path) -> str:
+    """Copia verificada. Si abrir el archivo falla porque está solo en la nube, se lo pide a OneDrive y se
+    reintenta una vez. Devuelve el SHA-256."""
+    try:
+        return copiar_verificado(origen, destino)[0]
+    except OSError:
+        if os.path.exists(largo(destino)):
+            os.remove(largo(destino))
+        if not (os.name == "nt" and _pendiente_de_descarga(origen)):
+            raise
+        log.info("Pidiendo a OneDrive que descargue %s", _sin_prefijo(origen))
+        if not pedir_a_onedrive(origen):
+            raise OSError("OneDrive no descargó el archivo a tiempo (revisar que esté abierto y conectado)")
+        return copiar_verificado(origen, destino)[0]
+
+
 @dataclass
 class ResultadoCopia:
     copiados: int = 0
@@ -149,7 +186,7 @@ def copiar_carpeta(origen: Path, destino: Path, manifiesto: Path, reserva_c: int
                 os.makedirs(largo(dst.parent), exist_ok=True)
                 if os.path.exists(largo(tmp)):
                     os.remove(largo(tmp))
-                sha, _ = copiar_verificado(p, tmp)
+                sha = copiar_desde_onedrive(p, tmp)
                 os.replace(largo(tmp), largo(dst))
                 detalle = ""
                 if nube:
@@ -833,7 +870,7 @@ def recuperar(seleccion: dict[str, set[str]], casos_por_sds: dict[str, list[str]
                     os.makedirs(largo(dst.parent), exist_ok=True)
                     if os.path.exists(largo(tmp)):
                         os.remove(largo(tmp))
-                    copiar_verificado(p, tmp)
+                    copiar_desde_onedrive(p, tmp)
                     os.replace(largo(tmp), largo(dst))
                     if nube:
                         devolver_a_la_nube(p)
