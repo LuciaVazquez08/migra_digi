@@ -61,6 +61,8 @@ def _parser() -> argparse.ArgumentParser:
     bo = sub.add_parser("buscar-en-original", help="Cuenta en cuántas SDS el número de caso aparece en los "
                                                    "nombres de archivo de la carpeta original (no descarga nada)")
     bo.add_argument("--carpeta", type=Path, help="Por defecto carpeta_casos (la original en C:)")
+    bo.add_argument("--muestra", action="store_true",
+                    help="Usar el resultado de 'consultar-sds --muestra N' en lugar del de todas las SDS")
     ej = sub.add_parser("ejemplos-sds", help="Muestra N SDS problemáticas con su CASE_ID, para buscarlas a mano")
     ej.add_argument("--casos", type=Path, required=True, help="CSV/XLSX de casos (SUBJECT, CASE_ID)")
     ej.add_argument("--n", type=int, default=3)
@@ -178,8 +180,10 @@ def _recuperacion(cfg, args) -> int:
         casos = RC.leer_casos_por_sds(destino / "casos_por_sds.csv")
         con = sum(1 for c in casos.values() if c)
         if args.muestra:
-            for s_, cs_ in casos.items():
+            for s_, cs_ in list(casos.items())[:20]:
                 print(f"  {s_}: {', '.join(cs_) if cs_ else '(sin caso)'}")
+            if len(casos) > 20:
+                print(f"  ... ({len(casos) - 20} más en el archivo de resultado)")
         print(f"\nSDS consultadas en total: {len(casos)} de {len(RC.sds_unicas(problemas))} | "
               f"con número de caso: {con} | sin caso: {len(casos) - con}"
               + (f" | pendientes: {r['pendientes']} (volver a ejecutar para continuar)" if r["pendientes"] else ""))
@@ -188,9 +192,9 @@ def _recuperacion(cfg, args) -> int:
         return 0
 
     if args.comando == "buscar-en-original":
-        ruta = carpeta_trabajo / "casos_por_sds.csv"
+        ruta = (carpeta_trabajo / "muestra_sds" if args.muestra else carpeta_trabajo) / "casos_por_sds.csv"
         if not ruta.exists():
-            print("Primero ejecutar 'consultar-sds'.")
+            print(f"No existe {ruta}. Primero ejecutar 'consultar-sds'" + (" --muestra N." if args.muestra else "."))
             return 1
         carpeta = args.carpeta or cfg.carpeta_casos
         print(f"Buscando números de caso en los nombres de archivo de {carpeta} (no descarga nada)...")
