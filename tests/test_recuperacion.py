@@ -195,5 +195,21 @@ def test_elegir_columna_caso():
     import pytest
     assert RC.elegir_columna_caso(["ID", "Numero_Caso", "ASUNTO"]) == "NUMERO_CASO"
     assert RC.elegir_columna_caso(["ID", "NRO_DE_CASO_S1", "ASUNTO"]) == "NRO_DE_CASO_S1"
+    assert RC.elegir_columna_caso(["CASO_ID", "FECHA", "ASUNTO", "ESTADO_CASO", "CASO_SALIENTE"]) == "CASO_ID"
     with pytest.raises(ValueError, match="--columna-caso"):
         RC.elegir_columna_caso(["ID", "ASUNTO", "FECHA"])
+
+
+def test_columna_ambigua_no_deja_hilos_con_columna_vacia(entorno, tmp_path):
+    import pytest
+
+    class Cur(_CursorSds):
+        description = [("ID",), ("ESTADO_CASO",), ("CASO_SALIENTE",), ("ASUNTO",)]
+        datos = {}
+
+    class Con(_ConSds):
+        def cursor(self):
+            return Cur()
+    with pytest.raises(ValueError, match="--columna-caso"):
+        RC.consultar_por_sds(entorno.cfg, ["29000001SEC", "29000002SEC", "29000003SEC"], tmp_path, conectar=Con,
+                             hilos=2)

@@ -574,8 +574,8 @@ def consultar_casos(cfg: Config, destino: Path, conectar=None, por_lote: int = 1
 # ---------------------------------------------------------------------------
 
 CONSULTA_POR_SDS = "SELECT * FROM CNA.ACT_S1_DETALLE_CASOS WHERE ASUNTO LIKE :1"
-_COLUMNAS_CASO_PREFERIDAS = ("NUMERO_CASO", "NRO_CASO", "NUM_CASO", "CASE_NUMBER", "CASENUMBER", "ID_CASO",
-                             "CASO", "CASE_ID")
+_COLUMNAS_CASO_PREFERIDAS = ("CASO_ID", "NUMERO_CASO", "NRO_CASO", "NUM_CASO", "CASE_NUMBER", "CASENUMBER",
+                             "ID_CASO", "CASO", "CASE_ID")
 
 
 def elegir_columna_caso(columnas: list[str], forzada: str = "") -> str:
@@ -660,8 +660,10 @@ def consultar_por_sds(cfg: Config, sds: list[str], carpeta: Path, columna_caso: 
                 with lock:
                     if estado["columnas"] is None:
                         log.info("Columnas de CNA.ACT_S1_DETALLE_CASOS: %s", ", ".join(columnas))
-                        estado["columnas"] = columnas
+                        # Se elige antes de registrar las columnas: si falla, los demás hilos no siguen
+                        # con una columna vacía.
                         estado["col_caso"] = elegir_columna_caso(columnas, columna_caso)
+                        estado["columnas"] = columnas
                         log.info("Columna del número de caso: %s", estado["col_caso"])
                     if escribir_cabecera_detalle:
                         wd.writerow(["SDS_BUSCADA"] + columnas)
