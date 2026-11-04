@@ -134,6 +134,8 @@ def _recuperacion(cfg, args) -> int:
                                   int(cfg.reserva_c_gb * 1e9), parar, filtro)
         print(f"\nCopiados: {r.copiados} ({r.bytes_copiados / 1e9:.2f} GB) | Ya estaban: {r.ya_copiados} | "
               f"Sin espacio en C: {r.sin_espacio} | Errores: {r.errores}{' | DETENIDO' if r.detenido else ''}")
+        if r.motivo_detencion:
+            print(f"DETENIDA: {r.motivo_detencion}\nRevisar OneDrive y volver a ejecutar el mismo comando.")
         print(f"Detalle: {carpeta_trabajo / 'copia_manifiesto.csv'}")
         return 0 if not (r.errores or r.sin_espacio) else 1
 

@@ -80,6 +80,7 @@ class ResultadoCopia:
     errores: int = 0
     bytes_copiados: int = 0
     detenido: bool = False
+    motivo_detencion: str = ""
 
 
 def _recorrer(origen: Path):
@@ -111,11 +112,15 @@ def destino_espejo(origen: Path, unidad: Path) -> Path:
     return unidad / origen.name
 
 
+ERRORES_SEGUIDOS_MAX = 50
+
+
 def copiar_carpeta(origen: Path, destino: Path, manifiesto: Path, reserva_c: int, detener=lambda: False,
-                   filtro=None) -> ResultadoCopia:
+                   filtro=None, errores_seguidos_max: int = ERRORES_SEGUIDOS_MAX) -> ResultadoCopia:
     """Copia ``origen`` a ``destino`` conservando la estructura. Nunca modifica ni borra el origen
     (solo restaura "solo en la nube" en los archivos que ya lo estaban). Reanudable."""
     res = ResultadoCopia()
+    seguidos = 0
     manifiesto.parent.mkdir(parents=True, exist_ok=True)
     nuevo = not manifiesto.exists()
     with open(manifiesto, "a", newline="", encoding="utf-8-sig") as fh:
@@ -152,12 +157,20 @@ def copiar_carpeta(origen: Path, destino: Path, manifiesto: Path, reserva_c: int
                         "no se pudo devolver a solo en la nube"
                 res.copiados += 1
                 res.bytes_copiados += tam
+                seguidos = 0
                 w.writerow([datetime.now().isoformat(timespec="seconds"), str(rel), tam, sha, "COPIADO", detalle])
             except OSError as exc:
                 res.errores += 1
+                seguidos += 1
                 if os.path.exists(largo(tmp)):
                     os.remove(largo(tmp))
                 w.writerow([datetime.now().isoformat(timespec="seconds"), str(rel), tam, "", "ERROR", str(exc)[:300]])
+                if seguidos >= errores_seguidos_max:
+                    res.detenido = True
+                    res.motivo_detencion = (f"{seguidos} errores seguidos; el último: {str(exc)[:300]}. "
+                                            "Probablemente OneDrive está detenido, sin conexión o pausado.")
+                    log.error("Copia detenida: %s", res.motivo_detencion)
+                    break
             if (res.copiados + res.errores + res.sin_espacio) % 200 == 0:
                 fh.flush()
                 log.info("Copia: %d copiados, %d ya estaban, %d sin espacio, %d errores", res.copiados,

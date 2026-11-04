@@ -127,3 +127,15 @@ def test_case_id_sin_primer_digito(tmp_path):
     casos.write_text("SUBJECT;CASE_ID\nSDS 29067459SEC;500123456\nx;7\n", encoding="utf-8")
     assert RC.leer_casos(casos, quitar_inicio=1) == [("SDS 29067459SEC", "00123456")]
     assert RC.leer_casos(casos)[0][1] == "500123456"
+
+
+def test_copia_se_detiene_ante_errores_seguidos(tmp_path, monkeypatch):
+    origen = tmp_path / "AMX Argentina S.A"
+    for i in range(10):
+        escribir(origen / f"{i}.txt", b"x")
+    def falla(a, b):
+        raise OSError(362, "El proveedor de archivos en la nube no se está ejecutando")
+    monkeypatch.setattr(RC, "copiar_verificado", falla)
+    r = RC.copiar_carpeta(origen, RC.destino_espejo(origen, tmp_path / "E"), tmp_path / "m.csv", 0,
+                          errores_seguidos_max=3)
+    assert r.detenido and r.errores == 3 and "nube" in r.motivo_detencion
