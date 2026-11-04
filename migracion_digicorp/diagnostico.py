@@ -112,6 +112,8 @@ def diagnosticar(cuit: str, ruta: Path, entradas: list[Entrada], ref: Referencia
     for e in facultativa:
         _procesar_facultativa(plan, arbol, e, cfg, soffice, urls_movil)
 
+    _aplicar_recuperados(plan, arbol, movil, cfg, soffice)
+
     # Solo se informa cuando la falta de documentos no se explica por otro bloqueo (p. ej. URL inválidas).
     hay_archivos = any(not e.es_dir and not R.es_ignorado(e.nombre) for e in entradas)
     migrables = any(a.tipo in (TipoAccion.COPIAR, TipoAccion.DESCARGAR, TipoAccion.CONVERTIR) for a in plan.acciones)
@@ -310,6 +312,44 @@ def _procesar_facultativa(plan: Plan, arbol: _Arbol, cont: Entrada, cfg: Config,
         plan.incidir(e.ruta, "DUPLICADO_EXCLUIDO", f"Copia de '{ref.ruta}' ({criterio})", manual=False,
                      bloqueante=False, accion="Excluir copia",
                      resultado="Se conserva el original en Documentación Móvil")
+
+
+# ---------------------------------------------------------------------------
+# SDS recuperadas desde la documentación original (por número de caso)
+# ---------------------------------------------------------------------------
+
+def _aplicar_recuperados(plan: Plan, arbol: _Arbol, movil: list[Entrada], cfg: Config, soffice: str | None) -> None:
+    """En las SDS RECUPERADAS, los enlaces se reemplazan por los documentos recuperados del caso."""
+    if not cfg.archivo_recuperados:
+        return
+    from .recuperacion import recuperados_validos
+    recuperados = recuperados_validos(cfg.archivo_recuperados)
+    if not recuperados:
+        return
+    for cont in movil:
+        for carpeta in arbol.de(cont.rel):
+            if not carpeta.es_dir or carpeta.nombre.upper() not in recuperados:
+                continue
+            sds = carpeta.nombre
+            enlaces = {x.rel for x in arbol.de(carpeta.rel) if not x.es_dir and R.extension(x.nombre) == R.EXT_URL}
+            if not enlaces:
+                continue
+            plan.acciones = [a for a in plan.acciones if a.origen_rel not in enlaces]
+            prefijo = str(carpeta.ruta)
+            plan.incidencias = [i for i in plan.incidencias
+                                if not (i.tipo == "URL_INVALIDA" and i.ruta.startswith(prefijo))]
+            for rel in sorted(enlaces):
+                plan.acciones.append(Accion(TipoAccion.IGNORAR, plan.ruta_origen.joinpath(*rel), rel,
+                                            detalle="Enlace reemplazado por documentos recuperados del caso"))
+            archivos = recuperados[sds.upper()]
+            for ruta in archivos:
+                tam = ruta.stat().st_size if ruta.exists() else 0
+                entrada = Entrada(("__recuperado__", sds, ruta.name), False, tam, ruta)
+                _planificar_archivo(plan, entrada, (DEST_MOVIL, sds), cfg, soffice)
+            plan.incidir(carpeta.ruta, "SDS_RECUPERADA",
+                         f"{len(enlaces)} enlace(s) reemplazado(s) por {len(archivos)} documento(s) recuperado(s) "
+                         "de la documentación original del caso", manual=False, bloqueante=False,
+                         accion="Usar documentos recuperados", resultado="Planificado")
 
 
 # ---------------------------------------------------------------------------

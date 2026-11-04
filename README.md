@@ -213,3 +213,23 @@ python -m migracion_digicorp --config config.real.toml buscar-en-original
 '%<SDS>%'` (si no hay filas, repite con las letras en minúscula) y guarda `casos_por_sds.csv` y
 `detalle_casos_por_sds.csv`. `buscar-en-original` cuenta en cuántas SDS el número de caso aparece en los
 nombres de archivo de la carpeta original (sin descargar nada), con el número completo y sin el primer dígito.
+
+### Recuperar documentos de las SDS y migrarlos
+
+```powershell
+python -m migracion_digicorp --config config.real.toml recuperar-sds --muestra --clientes 4
+```
+
+Para cada SDS con problema y número de caso, busca en la carpeta original los archivos cuyo nombre
+contiene el número de caso, los copia a `trabajo\recuperacion\archivos\<SDS>\` (desde la nube si hace
+falta, sin llenar C:) y los valida. Una SDS queda **RECUPERADA** si tiene al menos tantos archivos válidos
+como enlaces `.url` hay en su carpeta (planillas, accesos directos y duplicados no cuentan).
+
+Para migrar usando esos documentos, en la configuración:
+
+```toml
+archivo_recuperados = 'E:\Migracion Digicorp\trabajo\recuperacion\recuperados.csv'
+```
+
+En cada SDS RECUPERADA los enlaces se reemplazan por los documentos recuperados; el resto del cliente se
+migra igual que siempre y siguen valiendo todos los bloqueos (un cliente con otro problema no se migra).

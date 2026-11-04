@@ -735,3 +735,185 @@ def buscar_en_original(casos_por_sds: dict[str, list[str]], carpeta: Path, quita
         tot["con_archivo_alguna_forma"] += bool(a_comp or a_rec)
         filas.append((s_, casos, a_comp, a_rec))
     return tot, filas
+
+
+# ---------------------------------------------------------------------------
+# 4. Recuperación de documentos por SDS (archivos del caso en la carpeta original)
+# ---------------------------------------------------------------------------
+
+# Lo que no es documentación no se recupera ni cuenta para el mínimo de archivos.
+EXT_NO_DOCUMENTO = R.EXT_EXCEL | {".url", ".lnk", ".ini", ".db", ".tmp", ".crdownload", ".partial", ".part"}
+ESTADO_RECUPERADA = "RECUPERADA"
+
+
+def clientes_candidatos(problemas: list[SdsProblema], casos_por_sds: dict[str, list[str]], n: int = 0,
+                        cuits: set[str] | None = None) -> dict[str, set[str]]:
+    """Clientes cuyas SDS problemáticas tienen TODAS número de caso -> {cuit: {sds}}."""
+    por_cliente: dict[str, set[str]] = defaultdict(set)
+    for p in problemas:
+        por_cliente[p.cuit].add(p.sds.upper())
+    res = {}
+    for cuit in sorted(por_cliente):
+        if cuits and cuit not in cuits:
+            continue
+        if all(casos_por_sds.get(s_) for s_ in por_cliente[cuit]):
+            res[cuit] = por_cliente[cuit]
+            if n and len(res) >= n:
+                break
+    return res
+
+
+def contar_enlaces(origen_raw: Path, cuit: str, sds: str) -> int:
+    """Cantidad de .url en la carpeta de la SDS del cliente (lo que hay que reemplazar)."""
+    raiz = origen_raw / cuit
+    for cat in (raiz.iterdir() if raiz.is_dir() else []):
+        if cat.is_dir() and R.categoria_cliente(cat.name)[0] == "movil":
+            carpeta = cat / sds
+            if carpeta.is_dir():
+                return sum(1 for f in carpeta.iterdir() if f.is_file() and R.extension(f.name) == R.EXT_URL)
+    return 0
+
+
+def recuperar(seleccion: dict[str, set[str]], casos_por_sds: dict[str, list[str]], origen: Path, origen_raw: Path,
+              destino: Path, reserva_c: int, detener=lambda: False) -> list[dict]:
+    """Busca, copia (desde la nube si hace falta) y valida los archivos de cada caso.
+
+    Devuelve una fila por archivo: cuit, sds, caso, enlaces, origen, copia, resultado, detalle, sha256.
+    """
+    from .archivos import sha256_archivo
+
+    caso_a_sds: dict[str, set[str]] = defaultdict(set)
+    for cuit, lista in seleccion.items():
+        for s_ in lista:
+            for c in casos_por_sds.get(s_, []):
+                caso_a_sds[c].add(s_)
+    sds_a_cuit = {s_: cuit for cuit, lista in seleccion.items() for s_ in lista}
+    indice = _IndiceCasos(set(caso_a_sds))
+    encontrados: dict[str, list[tuple[str, Path]]] = defaultdict(list)  # sds -> [(caso, ruta)]
+    for i, (p, _) in enumerate(_recorrer(origen), 1):
+        if i % 20000 == 0:
+            log.info("Recuperación: %d archivos revisados", i)
+        for c in indice.buscar(p.name):
+            for s_ in caso_a_sds[c]:
+                encontrados[s_].append((c, p))
+
+    filas = []
+    for s_, cuit in sorted(sds_a_cuit.items()):
+        enlaces = contar_enlaces(origen_raw, cuit, s_)
+        usados: set[str] = set()
+        hashes: set[str] = set()
+        if not encontrados.get(s_):
+            filas.append(dict(cuit=cuit, sds=s_, caso="|".join(casos_por_sds.get(s_, [])), enlaces=enlaces,
+                              origen="", copia="", resultado="SIN_ARCHIVOS", detalle="", sha256=""))
+        for caso, p in sorted(encontrados.get(s_, []), key=lambda x: str(x[1]).casefold()):
+            if detener():
+                return filas
+            fila = dict(cuit=cuit, sds=s_, caso=caso, enlaces=enlaces, origen=_sin_prefijo(p), copia="",
+                        resultado="", detalle="", sha256="")
+            filas.append(fila)
+            if R.extension(p.name) in EXT_NO_DOCUMENTO or R.es_ignorado(p.name):
+                fila.update(resultado="NO_DOCUMENTO", detalle=f"Formato {R.extension(p.name) or '(sin extensión)'} "
+                                                              "no es documentación")
+                continue
+            nombre = p.name
+            k = 2
+            while nombre.casefold() in usados:
+                nombre = R.nombre_con_sufijo(p.name, k)
+                k += 1
+            usados.add(nombre.casefold())
+            dst = destino / s_ / nombre
+            try:
+                tam = os.stat(largo(p)).st_size
+                if not (dst.exists() and dst.stat().st_size == tam):
+                    nube = solo_en_la_nube(p)
+                    if nube and shutil.disk_usage(origen.anchor or str(origen)).free < tam + reserva_c:
+                        fila.update(resultado="SIN_ESPACIO_EN_C", detalle="No hay espacio en C: para traerlo de la nube")
+                        continue
+                    tmp = dst.with_name(dst.name + ".part")
+                    os.makedirs(largo(dst.parent), exist_ok=True)
+                    if os.path.exists(largo(tmp)):
+                        os.remove(largo(tmp))
+                    copiar_verificado(p, tmp)
+                    os.replace(largo(tmp), largo(dst))
+                    if nube:
+                        devolver_a_la_nube(p)
+                sha = sha256_archivo(dst)
+                resultado, detalle = validar_archivo(dst)
+                if resultado == "VALIDO" and sha in hashes:
+                    resultado, detalle = "DUPLICADO", "Contenido idéntico a otro archivo de la misma SDS"
+                hashes.add(sha)
+                fila.update(copia=_sin_prefijo(dst), resultado=resultado, detalle=detalle, sha256=sha)
+            except OSError as exc:
+                fila.update(resultado="ERROR_COPIA", detalle=str(exc)[:300])
+    return filas
+
+
+def resumir_recuperacion(filas: list[dict]) -> list[dict]:
+    """Por SDS: enlaces, válidos y estado (RECUPERADA si válidos >= enlaces y hay al menos uno)."""
+    por_sds: dict[str, dict] = {}
+    for f in filas:
+        r = por_sds.setdefault(f["sds"], dict(cuit=f["cuit"], sds=f["sds"], casos=set(), enlaces=int(f["enlaces"]),
+                                              validos=0, otros=0))
+        if f["caso"]:
+            r["casos"].update(f["caso"].split("|"))
+        if f["resultado"] == "VALIDO":
+            r["validos"] += 1
+        elif f["origen"]:
+            r["otros"] += 1
+    res = []
+    for r in por_sds.values():
+        if r["validos"] and r["validos"] >= r["enlaces"]:
+            estado = ESTADO_RECUPERADA
+        elif r["validos"]:
+            estado = "INSUFICIENTE"
+        else:
+            estado = "SIN_ARCHIVOS_VALIDOS"
+        res.append(dict(r, casos="|".join(sorted(r["casos"])), estado=estado))
+    return sorted(res, key=lambda r: (r["cuit"], r["sds"]))
+
+
+COLS_RECUPERADOS = ["cuit", "sds", "caso", "enlaces", "origen", "copia", "resultado", "detalle", "sha256"]
+COLS_RESUMEN_RECUPERACION = ["cuit", "sds", "casos", "enlaces", "validos", "otros", "estado"]
+
+
+def guardar_recuperacion(filas: list[dict], carpeta: Path) -> tuple[Path, Path]:
+    """Actualiza recuperados.csv / resumen_recuperacion.csv reemplazando solo las SDS procesadas."""
+    archivo, resumen = carpeta / "recuperados.csv", carpeta / "resumen_recuperacion.csv"
+    procesadas = {f["sds"] for f in filas}
+    previas = []
+    if archivo.exists():
+        with open(archivo, encoding="utf-8-sig") as fh:
+            previas = [f for f in csv.DictReader(fh, delimiter=";") if f["sds"] not in procesadas]
+    todas = previas + filas
+    for ruta, cols, datos in ((archivo, COLS_RECUPERADOS, todas),
+                              (resumen, COLS_RESUMEN_RECUPERACION, resumir_recuperacion(todas))):
+        tmp = ruta.with_name(ruta.name + ".tmp")
+        with open(tmp, "w", newline="", encoding="utf-8-sig") as fh:
+            w = csv.DictWriter(fh, fieldnames=cols, delimiter=";", extrasaction="ignore")
+            w.writeheader()
+            w.writerows(datos)
+        os.replace(tmp, ruta)
+    return archivo, resumen
+
+
+_CACHE_RECUPERADOS: dict[str, dict[str, list[Path]]] = {}
+
+
+def recuperados_validos(archivo: str | Path) -> dict[str, list[Path]]:
+    """SDS RECUPERADA -> archivos válidos (únicos) a usar en lugar de sus enlaces. Se cachea por ruta."""
+    if not archivo:
+        return {}
+    clave = str(archivo)
+    if clave not in _CACHE_RECUPERADOS:
+        ruta = Path(archivo)
+        if not ruta.exists():
+            raise FileNotFoundError(f"No existe el archivo de recuperados configurado: {ruta}")
+        with open(ruta, encoding="utf-8-sig") as fh:
+            filas = list(csv.DictReader(fh, delimiter=";"))
+        ok = {r["sds"] for r in resumir_recuperacion(filas) if r["estado"] == ESTADO_RECUPERADA}
+        res: dict[str, list[Path]] = defaultdict(list)
+        for f in filas:
+            if f["sds"] in ok and f["resultado"] == "VALIDO" and f["copia"]:
+                res[f["sds"]].append(Path(f["copia"]))
+        _CACHE_RECUPERADOS[clave] = dict(res)
+    return _CACHE_RECUPERADOS[clave]

@@ -213,3 +213,63 @@ def test_columna_ambigua_no_deja_hilos_con_columna_vacia(entorno, tmp_path):
     with pytest.raises(ValueError, match="--columna-caso"):
         RC.consultar_por_sds(entorno.cfg, ["29000001SEC", "29000002SEC", "29000003SEC"], tmp_path, conectar=Con,
                              hilos=2)
+
+
+def _cliente_con_sds_rota(entorno):
+    """Cliente con una SDS de 2 enlaces: uno truncado y otro de s1gateway (postergado)."""
+    raiz = entorno.cliente_normal(CUIT_A, sds="29387442SEC")
+    sds = raiz / "Documentación Móvil" / "29387442SEC"
+    escribir(sds / "SPN.url", contenido_url(url_s1("t")[:-10]))  # cortado
+    for f in ("DNI 1.url",):
+        (sds / f).unlink()  # queda SDS.url (s1gateway) + SPN.url (cortado) + desktop.ini
+    # Un enlace propio de Facultativa (no es de una SDS) seguiría postergando al cliente: se quita.
+    (raiz / f"Documentación Facultativa {CUIT_A}" / "Poder.url").unlink()
+    entorno.excel()
+    entorno.cfg.dominios_postergados = ("cdnva.s1gateway.com",)
+    return raiz
+
+
+def test_recuperar_y_migrar_con_documentos_recuperados(entorno, tmp_path):
+    from .test_migracion import archivos_destino, correr
+    _cliente_con_sds_rota(entorno)
+    original = tmp_path / "AMX Argentina S.A"
+    escribir(original / "Casos" / "8597420 - SDS firmada.pdf", pdf_bytes(2))
+    escribir(original / "Casos" / "8597420 - DNI.jpg", jpg_bytes())
+    escribir(original / "Casos" / "8597420 planilla.xlsx", b"PK\x03\x04")       # no es documentación
+    escribir(original / "Otros" / "85974201.pdf", pdf_bytes())                   # otro número
+    casos = {"29387442SEC": ["8597420"]}
+    probs = [RC.SdsProblema(CUIT_A, "29387442SEC", "SPN.url", "URL_CORTADA_O_INVALIDA"),
+             RC.SdsProblema(CUIT_A, "29387442SEC", "SDS.url", "POSTERGADO")]
+    sel = RC.clientes_candidatos(probs, casos, 4)
+    assert sel == {CUIT_A: {"29387442SEC"}}
+    carpeta = entorno.cfg.trabajo / "recuperacion"
+    filas = RC.recuperar(sel, casos, original, entorno.origen, carpeta / "archivos", 0)
+    resumen = RC.resumir_recuperacion(filas)
+    assert resumen[0]["enlaces"] == 2 and resumen[0]["validos"] == 2 and resumen[0]["estado"] == "RECUPERADA"
+    archivo, _ = RC.guardar_recuperacion(filas, carpeta)
+
+    entorno.cfg.archivo_recuperados = str(archivo)
+    res = correr(entorno)
+    assert res.publicados == 1, res.contadores
+    archivos = archivos_destino(entorno, CUIT_A)
+    assert "Documentacion Movil/29387442SEC/8597420 - SDS firmada.pdf" in archivos
+    assert "Documentacion Movil/29387442SEC/8597420 - DNI.pdf" in archivos      # jpg convertido
+    assert not any(a.endswith("SDS.pdf") or a.endswith("SPN.pdf") for a in archivos)
+    assert entorno.sesion.llamadas == []  # no se descargó ningún enlace de esa SDS
+
+
+def test_recuperacion_insuficiente_no_migra(entorno, tmp_path):
+    from .test_migracion import correr, estado_de
+    _cliente_con_sds_rota(entorno)
+    original = tmp_path / "AMX Argentina S.A"
+    escribir(original / "8597420 - unico.pdf", pdf_bytes())  # 1 archivo para 2 enlaces
+    casos = {"29387442SEC": ["8597420"]}
+    probs = [RC.SdsProblema(CUIT_A, "29387442SEC", "SPN.url", "URL_CORTADA_O_INVALIDA")]
+    carpeta = entorno.cfg.trabajo / "recuperacion"
+    filas = RC.recuperar(RC.clientes_candidatos(probs, casos), casos, original, entorno.origen, carpeta / "archivos", 0)
+    assert RC.resumir_recuperacion(filas)[0]["estado"] == "INSUFICIENTE"
+    archivo, _ = RC.guardar_recuperacion(filas, carpeta)
+    entorno.cfg.archivo_recuperados = str(archivo)
+    RC._CACHE_RECUPERADOS.clear()
+    assert correr(entorno).publicados == 0
+    assert estado_de(entorno, CUIT_A) == "REVISION_MANUAL"

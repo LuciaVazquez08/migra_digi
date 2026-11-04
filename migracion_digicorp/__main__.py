@@ -63,6 +63,10 @@ def _parser() -> argparse.ArgumentParser:
     bo.add_argument("--carpeta", type=Path, help="Por defecto carpeta_casos (la original en C:)")
     bo.add_argument("--muestra", action="store_true",
                     help="Usar el resultado de 'consultar-sds --muestra N' en lugar del de todas las SDS")
+    rs = sub.add_parser("recuperar-sds", help="Copia y valida los archivos del caso de cada SDS problemática")
+    rs.add_argument("--muestra", action="store_true", help="Usar el resultado de 'consultar-sds --muestra'")
+    rs.add_argument("--clientes", type=int, default=0, help="Procesar solo los primeros N clientes candidatos")
+    rs.add_argument("--cuits", nargs="+", default=[], help="Procesar solo estos clientes")
     ej = sub.add_parser("ejemplos-sds", help="Muestra N SDS problemáticas con su CASE_ID, para buscarlas a mano")
     ej.add_argument("--casos", type=Path, required=True, help="CSV/XLSX de casos (SUBJECT, CASE_ID)")
     ej.add_argument("--n", type=int, default=3)
@@ -213,6 +217,42 @@ def _recuperacion(cfg, args) -> int:
         print(f"Detalle: {salida}")
         return 0
 
+    if args.comando == "recuperar-sds":
+        problemas = _leer_problemas(carpeta_trabajo)
+        if problemas is None:
+            return 1
+        ruta = (carpeta_trabajo / "muestra_sds" if args.muestra else carpeta_trabajo) / "casos_por_sds.csv"
+        if not ruta.exists():
+            print(f"No existe {ruta}. Primero ejecutar 'consultar-sds'.")
+            return 1
+        casos = RC.leer_casos_por_sds(ruta)
+        seleccion = RC.clientes_candidatos(problemas, casos, args.clientes, set(args.cuits) or None)
+        if not seleccion:
+            print("Ningún cliente tiene número de caso en todas sus SDS con problema.")
+            return 1
+        print(f"Clientes: {len(seleccion)} | SDS: {sum(len(v) for v in seleccion.values())} | "
+              f"buscando en {cfg.carpeta_casos} (solo nombres) y copiando los encontrados...")
+        with Parada(cfg) as parar:
+            filas = RC.recuperar(seleccion, casos, cfg.carpeta_casos, cfg.origen, carpeta_trabajo / "archivos",
+                                 int(cfg.reserva_c_gb * 1e9), parar)
+        archivo, resumen = RC.guardar_recuperacion(filas, carpeta_trabajo)
+        por_sds = {r["sds"]: r for r in RC.resumir_recuperacion(filas)}
+        ok_clientes = []
+        for cuit, lista in seleccion.items():
+            estados = [por_sds.get(s_, {}).get("estado", "SIN_ARCHIVOS_VALIDOS") for s_ in sorted(lista)]
+            todas = all(e == RC.ESTADO_RECUPERADA for e in estados)
+            ok_clientes += [cuit] if todas else []
+            print(f"\nCliente {cuit}: {'TODAS SUS SDS RECUPERADAS' if todas else 'NO se puede migrar todavía'}")
+            for s_ in sorted(lista):
+                r = por_sds.get(s_, {})
+                print(f"   {s_}: enlaces {r.get('enlaces', '?')} | archivos válidos {r.get('validos', 0)} | "
+                      f"otros {r.get('otros', 0)} -> {r.get('estado', 'SIN_ARCHIVOS_VALIDOS')}")
+        print(f"\nClientes con todas sus SDS recuperadas: {len(ok_clientes)} de {len(seleccion)}")
+        if ok_clientes:
+            print("Para migrarlos: --cuits " + " ".join(ok_clientes))
+        print(f"Archivos recuperados en: {carpeta_trabajo / 'archivos'}\nDetalle: {archivo}\nResumen: {resumen}")
+        return 0
+
     if args.comando == "ejemplos-sds":
         problemas = _leer_problemas(carpeta_trabajo)
         if problemas is None:
@@ -301,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
     configurar_logging(cfg, datetime.now().strftime("%Y%m%d_%H%M%S"))
 
     if args.comando in ("copiar-carpeta", "sds-problematicas", "buscar-casos", "consultar-casos", "ejemplos-sds",
-                        "consultar-sds", "buscar-en-original"):
+                        "consultar-sds", "buscar-en-original", "recuperar-sds"):
         return _recuperacion(cfg, args)
 
     if args.comando == "estado":

@@ -79,6 +79,9 @@ class Config:
     # El CASE_ID de la base tiene un dígito de más al comienzo respecto del que figura en los nombres de
     # archivo: se quitan estos caracteres iniciales antes de buscar.
     case_id_quitar_inicio: int = 1
+    # recuperados.csv generado por 'recuperar-sds'. Si se indica, en las SDS RECUPERADAS los enlaces se
+    # reemplazan por los documentos recuperados. Vacío = no se usa.
+    archivo_recuperados: str = ""
 
     # --- Conversión ----------------------------------------------------------
     convertir_office: bool = True
