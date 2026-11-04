@@ -156,9 +156,9 @@ class _CursorSds:
     description = [("NUMERO_CASO",), ("ASUNTO",)]
     datos = {"%29000001SEC%": [("8597420", "Alta 29000001SEC")], "%29000002sec%": [("1234567", "x 29000002sec")]}
 
-    def execute(self, sql, patron):
+    def execute(self, sql, params):
         assert sql == RC.CONSULTA_POR_SDS
-        self.filas = self.datos.get(patron, [])
+        self.filas = self.datos.get(params[0], [])
 
     def fetchall(self):
         return self.filas

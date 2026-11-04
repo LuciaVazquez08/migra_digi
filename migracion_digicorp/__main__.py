@@ -167,11 +167,13 @@ def _recuperacion(cfg, args) -> int:
         except ImportError:
             print("Falta el paquete de Oracle: python -m pip install -r requirements.txt")
             return 1
-        except (FileNotFoundError, ValueError) as exc:
-            print(exc)
-            return 1
         except Exception as exc:
-            print(f"Error de Oracle: {str(exc).splitlines()[0][:300]}")
+            import logging
+            import traceback
+            logging.getLogger(__name__).debug("Detalle del error:\n%s", traceback.format_exc())
+            ultimo = traceback.extract_tb(exc.__traceback__)[-1]
+            print(f"Error ({type(exc).__name__}): {str(exc).splitlines()[0][:300] if str(exc) else ''}\n"
+                  f"  en {Path(ultimo.filename).name}, línea {ultimo.lineno}: {ultimo.line}")
             return 1
         casos = RC.leer_casos_por_sds(destino / "casos_por_sds.csv")
         con = sum(1 for c in casos.values() if c)

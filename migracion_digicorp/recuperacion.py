@@ -573,7 +573,7 @@ def consultar_casos(cfg: Config, destino: Path, conectar=None, por_lote: int = 1
 # 2c. Número de caso por SDS en CNA.ACT_S1_DETALLE_CASOS (una consulta por SDS)
 # ---------------------------------------------------------------------------
 
-CONSULTA_POR_SDS = "SELECT * FROM CNA.ACT_S1_DETALLE_CASOS WHERE ASUNTO LIKE :patron"
+CONSULTA_POR_SDS = "SELECT * FROM CNA.ACT_S1_DETALLE_CASOS WHERE ASUNTO LIKE :1"
 _COLUMNAS_CASO_PREFERIDAS = ("NUMERO_CASO", "NRO_CASO", "NUM_CASO", "CASE_NUMBER", "CASENUMBER", "ID_CASO",
                              "CASO", "CASE_ID")
 
@@ -652,20 +652,24 @@ def consultar_por_sds(cfg: Config, sds: list[str], carpeta: Path, columna_caso: 
                     return
                 filas = []
                 for variante in ((s_, s_.lower()) if tambien_minusculas else (s_,)):
-                    cur.execute(CONSULTA_POR_SDS, patron=f"%{variante}%")
+                    cur.execute(CONSULTA_POR_SDS, [f"%{variante}%"])
                     filas = cur.fetchall()
                     if filas:
                         break
-                columnas = [d[0].upper() for d in cur.description]
+                columnas = [str(getattr(d, "name", None) or d[0]).upper() for d in cur.description]
                 with lock:
                     if estado["columnas"] is None:
+                        log.info("Columnas de CNA.ACT_S1_DETALLE_CASOS: %s", ", ".join(columnas))
                         estado["columnas"] = columnas
                         estado["col_caso"] = elegir_columna_caso(columnas, columna_caso)
-                        log.info("Columnas: %s | número de caso: %s", ", ".join(columnas), estado["col_caso"])
+                        log.info("Columna del número de caso: %s", estado["col_caso"])
                     if escribir_cabecera_detalle:
                         wd.writerow(["SDS_BUSCADA"] + columnas)
                         escribir_cabecera_detalle = False
-                    i = estado["columnas"].index(estado["col_caso"])
+                    if estado["col_caso"] not in columnas:
+                        raise ValueError(f"La columna del número de caso '{estado['col_caso']}' no está en el "
+                                         f"resultado. Columnas: {', '.join(columnas)}")
+                    i = columnas.index(estado["col_caso"])
                     casos = sorted({str(f[i]).strip() for f in filas if f[i] not in (None, "")})
                     for f in filas:
                         wd.writerow([s_] + ["" if v is None else str(v).replace("\r", " ").replace("\n", " ")
